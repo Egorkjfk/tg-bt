@@ -1,0 +1,65 @@
+# .gitignore
+# Environment files
+.env
+.env.local
+.env.production
+.env.development
+
+# Dependencies
+node_modules/
+vendor/
+*.gem
+
+# Build outputs
+
+tg-web-app-bot/public/list/*
+tg-web-app-bot/public/smena/*
+!tg-web-app-bot/public/list/.gitkeep
+!tg-web-app-bot/public/smena/.gitkeep
+
+dist/
+build/
+*.exe
+*.dll
+*.so
+*.dylib
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+logs/
+
+# Runtime data
+pids
+*.pid
+*.seed
+*.pid.lock
+
+# Coverage directory used by tools like istanbul
+coverage/
+
+# Dependency directories
+jspm_packages/
+
+# Optional npm cache directory
+.npm
+
+# Optional REPL history
+.node_repl_history
+
+# Output of 'npm pack'
+*.tgz
+
+# Yarn Integrity file
+.yarn-integrity
+
+
