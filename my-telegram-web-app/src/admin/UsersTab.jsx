@@ -1,6 +1,7 @@
-import React, { useEffect, useState, useContext } from 'react'
+import React, { useEffect, useState, useContext, useRef } from 'react'
 import { API_URL } from '../constants/api'
 import { AdminMQTTContext } from '../AdminMQTT'
+import BonusFineForm from './BonusFineForm'
 
 const UsersTab = ({ userData, openSchedulePage }) => {
 	const [allUsers, setAllUsers] = useState([])
@@ -20,6 +21,27 @@ const UsersTab = ({ userData, openSchedulePage }) => {
 
 	const [showEditModal, setShowEditModal] = useState(false)
 	const [editingUser, setEditingUser] = useState(null)
+	const [showBonusFineForm, setShowBonusFineForm] = useState(false)
+	const [bonusFineFormType, setBonusFineFormType] = useState(null)
+	const [bonusFineFormUser, setBonusFineFormUser] = useState(null)
+
+	const handleShowBonusForm = (user) => {
+		setBonusFineFormUser(user);
+		setBonusFineFormType('bonus');
+		setShowBonusFineForm(true);
+	};
+
+	const handleShowFineForm = (user) => {
+		setBonusFineFormUser(user);
+		setBonusFineFormType('fine');
+		setShowBonusFineForm(true);
+	};
+
+	const handleCloseBonusFineForm = () => {
+		setShowBonusFineForm(false);
+		setBonusFineFormUser(null);
+		setBonusFineFormType(null);
+	};
 
 	const mqttContext = useContext(AdminMQTTContext)
 const { connected, messages, isAdmin } = mqttContext || {}
@@ -177,12 +199,12 @@ const { connected, messages, isAdmin } = mqttContext || {}
 	}
 
 	const handleScheduleUser = user => {
-		if (openSchedulePage) {
-			openSchedulePage(user);
-		} else {
-			window.location.hash = `schedule/${user.id}`;
+			if (openSchedulePage) {
+				openSchedulePage(user);
+			} else {
+				window.location.hash = `schedule/${user.id}`;
+			}
 		}
-	}
 
 	const updateUserConfirmed = async (userId, currentConfirmed) => {
 		try {
@@ -367,24 +389,10 @@ const { connected, messages, isAdmin } = mqttContext || {}
 						<option value='false'>Неподтвержденные</option>
 					</select>
 				</div>
-			</div>
-
-			<div style={{ display: 'flex', gap: '10px', marginBottom: '15px' }}>
-				<button
-					onClick={resetFilters}
-					style={{
-						padding: '10px 20px',
-						backgroundColor: '#a0aec0',
-						color: 'white',
-						border: 'none',
-						borderRadius: '8px',
-						cursor: 'pointer',
-						flex: 1,
-						fontSize: '14px',
-					}}
-				>
-					🔄 Сбросить фильтры
-				</button>
+		
+			
+				
+				
 			</div>
 
 			{filteredUsers.length === 0 ? (
@@ -402,8 +410,26 @@ const { connected, messages, isAdmin } = mqttContext || {}
 							onSchedule={handleScheduleUser}
 							onUpdateConfirmed={updateUserConfirmed}
 							openSchedulePage={openSchedulePage}
+							onShowBonusForm={handleShowBonusForm}
+							onShowFineForm={handleShowFineForm}
+							isLast={index === filteredUsers.length - 1}
 						/>
 					))}
+					
+					{/* Компонент формы добавления премии/штрафа */}
+					{showBonusFineForm && bonusFineFormUser && bonusFineFormType && (
+						<BonusFineForm
+							isOpen={showBonusFineForm}
+							onClose={handleCloseBonusFineForm}
+							onSubmit={(formData) => {
+								// Можно добавить логику обновления списка пользователей или других данных
+								handleCloseBonusFineForm();
+							}}
+							type={bonusFineFormType}
+							user={bonusFineFormUser}
+							userData={userData}
+						/>
+					)}
 				</div>
 			)}
 
@@ -434,121 +460,262 @@ const { connected, messages, isAdmin } = mqttContext || {}
 		</div>
 	)
 }
+const UserCard = ({ user, index, onEdit, onSchedule, onUpdateConfirmed, openSchedulePage, onShowBonusForm, onShowFineForm, isLast }) => {
+	const [showBonusFineMenu, setShowBonusFineMenu] = useState(false);
+	const [menuPosition, setMenuPosition] = useState('bottom'); // 'bottom' или 'top'
+	const timeoutRef = useRef(null);
 
-const UserCard = ({ user, index, onEdit, onSchedule, onUpdateConfirmed, openSchedulePage }) => (
-	<div
-		style={{
-			padding: '12px',
-			border: '1px solid #e2e8f0',
-			borderRadius: '8px',
-			marginBottom: '10px',
-			backgroundColor: index % 2 === 0 ? '#f7fafc' : 'white',
-		}}
-	>
-		<div style={{ display: 'flex', justifyContent: 'space-between' }}>
-			<div>
-				<strong>
-					{user.first_name} {user.last_name || ''}
-				</strong>
-				{user.is_admin && (
-					<span
-						style={{
-							marginLeft: '8px',
-							backgroundColor: '#4299e1',
-							color: 'white',
-							padding: '2px 6px',
-							borderRadius: '4px',
-							fontSize: '12px',
-						}}
-					>
-						ADMIN
-					</span>
-				)}
+	// Определяем позицию меню для последнего пользователя
+	useEffect(() => {
+		if (isLast) {
+			setMenuPosition('top');
+		} else {
+			setMenuPosition('bottom');
+		}
+	}, [isLast]);
+
+	const handleMouseEnter = () => {
+		if (timeoutRef.current) {
+			clearTimeout(timeoutRef.current);
+		}
+		setShowBonusFineMenu(true);
+	};
+
+	const handleMouseLeave = () => {
+		// Задержка перед скрытием меню
+		timeoutRef.current = setTimeout(() => {
+			setShowBonusFineMenu(false);
+		}, 200); // 300ms = 0.3 секунды
+	};
+
+	const handleMenuEnter = () => {
+		if (timeoutRef.current) {
+			clearTimeout(timeoutRef.current);
+		}
+	};
+
+	const handleMenuLeave = () => {
+		timeoutRef.current = setTimeout(() => {
+			setShowBonusFineMenu(false);
+		}, 300);
+	};
+
+	// Очищаем таймер при размонтировании
+	useEffect(() => {
+		return () => {
+			if (timeoutRef.current) {
+				clearTimeout(timeoutRef.current);
+			}
+		};
+	}, []);
+
+	return (
+		<div
+			style={{
+				padding: '12px',
+				border: '1px solid #e2e8f0',
+				borderRadius: '8px',
+				marginBottom: '10px',
+				backgroundColor: index % 2 === 0 ? '#f7fafc' : 'white',
+				position: 'relative'
+			}}
+		>
+			<div style={{ display: 'flex', justifyContent: 'space-between' }}>
+				<div>
+					<strong>
+						{user.first_name} {user.last_name || ''}
+					</strong>
+					{user.is_admin && (
+						<span
+							style={{
+								marginLeft: '8px',
+								backgroundColor: '#4299e1',
+								color: 'white',
+								padding: '2px 6px',
+								borderRadius: '4px',
+								fontSize: '12px',
+							}}
+						>
+							ADMIN
+						</span>
+					)}
+				</div>
+				<div style={{ fontSize: '12px', color: '#666' }}>ID: {user.id}</div>
 			</div>
-			<div style={{ fontSize: '12px', color: '#666' }}>ID: {user.id}</div>
-		</div>
-		<div style={{ fontSize: '14px', color: '#666', marginTop: '5px' }}>
-			@{user.username || 'нет юзернейма'} • {user.telegram_id}
-		</div>
-		<div style={{ fontSize: '14px', marginTop: '5px' }}>
-			📞 {user.phone_number || 'нет телефона'}
-		</div>
-		<div style={{ fontSize: '12px', color: '#666', marginTop: '5px' }}>
-			Статус:{' '}
-			<span
-				style={{
-					cursor: 'pointer',
-					textDecoration: 'underline',
-				}}
-				onClick={() => onUpdateConfirmed(user.id, user.confirmed)}
-				title='Нажмите для изменения статуса'
-			>
-				{user.confirmed ? (
-					<span style={{ color: '#38a169' }}>✅ Подтвержден</span>
-				) : (
-					<span style={{ color: '#e53e3e' }}>❌ Не подтвержден</span>
-				)}
-			</span>
-		</div>
-		<div style={{ marginTop: '10px', display: 'flex', gap: '10px' }}>
-			<button
-				onClick={() => onEdit(user)}
-				style={{
-					padding: '5px 10px',
-					backgroundColor: '#4299e1',
-					color: 'white',
-					border: 'none',
-					borderRadius: '5px',
-					cursor: 'pointer',
-				}}
-			>
-				✏️ Изменить
-			</button>
-			<button
-				onClick={() => {
-					if (openSchedulePage) {
-						openSchedulePage(user);
-					} else {
-						onSchedule(user);
-					}
-				}}
-				style={{
-					padding: '5px 10px',
-					backgroundColor: '#38a169',
-					color: 'white',
-					border: 'none',
-					borderRadius: '5px',
-					cursor: 'pointer',
-				}}
-			>
-				📅 Расписание
-			</button>
-			{user.username && (
-				<a
-					href={`https://t.me/${user.username}`}
-					target='_blank'
-					rel='noopener noreferrer'
+			<div style={{ fontSize: '14px', color: '#66', marginTop: '5px' }}>
+				@{user.username || 'нет юзернейма'} • {user.telegram_id}
+			</div>
+			<div style={{ fontSize: '14px', marginTop: '5px' }}>
+				📞 {user.phone_number || 'нет телефона'}
+			</div>
+			<div style={{ fontSize: '12px', color: '#66', marginTop: '5px' }}>
+				Статус:{' '}
+				<span
+					style={{
+						cursor: 'pointer',
+						textDecoration: 'underline',
+					}}
+					onClick={() => onUpdateConfirmed(user.id, user.confirmed)}
+					title='Нажмите для изменения статуса'
+				>
+					{user.confirmed ? (
+						<span style={{ color: '#38a169' }}>✅ Подтвержден</span>
+					) : (
+						<span style={{ color: '#e53e3e' }}>❌ Не подтвержден</span>
+					)}
+				</span>
+			</div>
+			<div style={{ marginTop: '10px', display: 'flex', gap: '10px', position: 'relative' }}>
+				<button
+					onClick={() => onEdit(user)}
 					style={{
 						padding: '5px 10px',
-						backgroundColor: '#6441a5',
+						backgroundColor: '#4299e1',
 						color: 'white',
 						border: 'none',
 						borderRadius: '5px',
 						cursor: 'pointer',
-						textDecoration: 'none',
-						display: 'inline-block',
-						textAlign: 'center',
 					}}
 				>
-					💬 Чат
-				</a>
-			)}
+					✏️ Изменить
+				</button>
+				<button
+					onClick={() => {
+						if (openSchedulePage) {
+							openSchedulePage(user);
+						} else {
+							onSchedule(user);
+						}
+					}}
+					style={{
+						padding: '5px 10px',
+						backgroundColor: '#38a169',
+						color: 'white',
+						border: 'none',
+						borderRadius: '5px',
+						cursor: 'pointer',
+					}}
+				>
+					📅 Расписание
+				</button>
+				
+				{/* Выпадающий список Премия/Штраф */}
+				<div 
+					style={{ 
+						position: 'relative',
+						display: 'inline-block'
+					}}
+					onMouseEnter={handleMouseEnter}
+					onMouseLeave={handleMouseLeave}
+				>
+					<button
+						style={{
+							padding: '5px 10px',
+							backgroundColor: '#805ad5',
+							color: 'white',
+							border: 'none',
+							borderRadius: '5px',
+							cursor: 'pointer',
+							display: 'flex',
+							alignItems: 'center',
+							gap: '5px'
+						}}
+					>
+						🎁 Премия/Штраф
+						<span style={{ fontSize: '12px' }}>▼</span>
+					</button>
+					
+					{/* Выпадающее меню */}
+					{showBonusFineMenu && (
+						<div
+							style={{
+								position: 'absolute',
+								[menuPosition === 'bottom' ? 'top' : 'bottom']: '100%',
+								left: 0,
+								backgroundColor: 'white',
+								border: '1px solid #e2e8f0',
+								borderRadius: '8px',
+								boxShadow: '0 4px 6px -1px rgba(0,0,0,0.1), 0 2px 4px -1px rgba(0,0,0,0.06)',
+								zIndex: 1000,
+								minWidth: '160px',
+								marginTop: menuPosition === 'bottom' ? '5px' : '0',
+								marginBottom: menuPosition === 'top' ? '5px' : '0'
+							}}
+							onMouseEnter={handleMenuEnter}
+							onMouseLeave={handleMenuLeave}
+						>
+							<button
+								onClick={() => onShowBonusForm(user)}
+								style={{
+									width: '100%',
+									padding: '10px',
+									border: 'none',
+									backgroundColor: '#38a169',
+									color: 'white',
+									borderRadius: '8px 8px 0 0',
+									cursor: 'pointer',
+									textAlign: 'left',
+									fontSize: '14px',
+									display: 'flex',
+									alignItems: 'center',
+									gap: '8px'
+								}}
+							>
+								✅ Добавить премию
+							</button>
+							<button
+								onClick={() => onShowFineForm(user)}
+								style={{
+									width: '100%',
+									padding: '10px',
+									border: 'none',
+									backgroundColor: '#e53e3e',
+									color: 'white',
+									borderRadius: '0 0 8px 8px',
+									cursor: 'pointer',
+									textAlign: 'left',
+									fontSize: '14px',
+									display: 'flex',
+									alignItems: 'center',
+									gap: '8px'
+								}}
+							>
+								❌ Добавить штраф
+							</button>
+						</div>
+					)}
+				</div>
+
+				{user.username && (
+					<a
+						href={`https://t.me/${user.username}`}
+						target='_blank'
+						rel='noopener noreferrer'
+						style={{
+							padding: '5px 10px',
+							backgroundColor: '#6441a5',
+							color: 'white',
+							border: 'none',
+							borderRadius: '5px',
+							cursor: 'pointer',
+							textDecoration: 'none',
+							display: 'inline-block',
+							textAlign: 'center',
+						}}
+					>
+						💬 Чат
+					</a>
+				)}
+			</div>
 		</div>
-	</div>
-)
+	);
+}
+
 
 const EditUserModal = ({ user, onSave, onClose, userData }) => {
 	const [editedUser, setEditedUser] = useState({ ...user })
+	const [isDeleting, setIsDeleting] = useState(false)
+	const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
 
 	const handleSave = async () => {
 		try {
@@ -579,6 +746,56 @@ const EditUserModal = ({ user, onSave, onClose, userData }) => {
 		}
 	}
 
+	const handleDeleteUser = async () => {
+		// Не позволяем удалять администраторов
+		if (user.is_admin) {
+			alert('❌ Нельзя удалить администратора!')
+			return
+		}
+
+		// Проверяем, что администратор не пытается удалить самого себя
+		if (user.id === userData.id) {
+			alert('❌ Администратор не может удалить самого себя!')
+			return
+		}
+
+		if (!window.confirm(`Вы уверены, что хотите удалить пользователя ${user.first_name} ${user.last_name || ''}?\n\nЭто действие нельзя будет отменить!`)) {
+			return
+		}
+
+		try {
+			setIsDeleting(true)
+			const response = await fetch(`${API_URL}/delete-user`, {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({
+					user_id: user.id,
+					admin_id: userData.id,
+					telegram_id: userData.telegram_id,
+				}),
+			})
+
+			if (!response.ok)
+				throw new Error(`HTTP error! status: ${response.status}`)
+
+			const result = await response.json()
+
+			if (result.status === 'success') {
+				alert(`✅ ${result.message}`)
+				onClose() // Закрываем модальное окно
+				// Можно добавить callback для обновления списка пользователей
+				window.location.reload() // Или перезагрузить страницу
+			} else {
+				throw new Error(result.message || 'Ошибка при удалении пользователя')
+			}
+		} catch (err) {
+			console.error('❌ Ошибка удаления пользователя:', err)
+			alert('Ошибка при удалении пользователя: ' + err.message)
+		} finally {
+			setIsDeleting(false)
+		}
+	}
+
 	return (
 		<div
 			style={{
@@ -606,6 +823,34 @@ const EditUserModal = ({ user, onSave, onClose, userData }) => {
 				}}
 			>
 				<h3>✏️ Редактирование пользователя</h3>
+				
+				{/* Предупреждение об удалении администратора */}
+				{user.is_admin && (
+					<div style={{
+						padding: '10px',
+						marginBottom: '15px',
+						backgroundColor: '#fed7d7',
+						border: '1px solid #fc8181',
+						borderRadius: '5px',
+						color: '#c53030'
+					}}>
+						⚠️ Этот пользователь является администратором. Удаление администраторов запрещено.
+					</div>
+				)}
+				
+				{/* Предупреждение о попытке удалить себя */}
+				{user.id === userData.id && (
+					<div style={{
+						padding: '10px',
+						marginBottom: '15px',
+						backgroundColor: '#fed7d7',
+						border: '1px solid #fc8181',
+						borderRadius: '5px',
+						color: '#c53030'
+					}}>
+						⚠️ Вы не можете удалить самого себя.
+					</div>
+				)}
 
 				<div style={{ marginBottom: '15px' }}>
 					<label
@@ -781,7 +1026,7 @@ const EditUserModal = ({ user, onSave, onClose, userData }) => {
 					</select>
 				</div>
 
-				<div style={{ display: 'flex', gap: '10px' }}>
+				<div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
 					<button
 						onClick={handleSave}
 						style={{
@@ -792,28 +1037,85 @@ const EditUserModal = ({ user, onSave, onClose, userData }) => {
 							borderRadius: '5px',
 							cursor: 'pointer',
 							flex: 1,
+							minWidth: '120px',
 						}}
 					>
 						💾 Сохранить
 					</button>
+					
+					{/* Кнопка удаления - показываем только если это не администратор и не сам себя */}
+					{!user.is_admin && user.id !== userData.id && (
+						<button
+							onClick={handleDeleteUser}
+							disabled={isDeleting}
+							style={{
+								padding: '10px 20px',
+								backgroundColor: isDeleting ? '#718096' : '#e53e3e',
+								color: 'white',
+								border: 'none',
+								borderRadius: '5px',
+								cursor: isDeleting ? 'not-allowed' : 'pointer',
+								flex: 1,
+								minWidth: '120px',
+								display: 'flex',
+								alignItems: 'center',
+								justifyContent: 'center',
+								gap: '5px'
+							}}
+						>
+							{isDeleting ? (
+								<>
+									<span>⏳</span> Удаление...
+								</>
+							) : (
+								<>
+									🗑️ Удалить
+								</>
+							)}
+						</button>
+					)}
+					
 					<button
 						onClick={onClose}
 						style={{
 							padding: '10px 20px',
-							backgroundColor: '#e53e3e',
+							backgroundColor: '#718096',
 							color: 'white',
 							border: 'none',
 							borderRadius: '5px',
 							cursor: 'pointer',
 							flex: 1,
+							minWidth: '120px',
 						}}
 					>
 						❌ Отмена
 					</button>
 				</div>
+				
+				{/* Предупреждение о последствиях удаления */}
+				{!user.is_admin && user.id !== userData.id && (
+					<div style={{
+						marginTop: '15px',
+						padding: '10px',
+						backgroundColor: '#fffaf0',
+						border: '1px solid #dd6b20',
+						borderRadius: '5px',
+						color: '#c05621',
+						fontSize: '12px'
+					}}>
+						⚠️ При удалении пользователя также будут удалены:
+						<ul style={{ margin: '5px 0 0 0', paddingLeft: '20px' }}>
+							<li>Все записи его расписания</li>
+							<li>Все назначенные штрафы</li>
+							<li>Все назначенные премии</li>
+							<li>Файлы фото, если они есть</li>
+						</ul>
+					</div>
+				)}
 			</div>
 		</div>
 	)
 }
+
 
 export default UsersTab

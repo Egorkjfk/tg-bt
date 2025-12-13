@@ -4,12 +4,14 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
+	"strings"
 	"time"
 
-	mqtt "github.com/eclipse/paho.mqtt.golang"
 	"tg-web-app-bot/config"
 	"tg-web-app-bot/models"
 	"tg-web-app-bot/repository"
+
+	mqtt "github.com/eclipse/paho.mqtt.golang"
 )
 
 type MQTTService struct {
@@ -173,6 +175,93 @@ func (s *MQTTService) PublishChecklistMessage(checklist *models.Checklist) error
 
 	return nil
 }
+// PublishChecklistDescriptionUpdated публикует сообщение об изменении описания чеклиста
+func (s *MQTTService) PublishChecklistDescriptionUpdated(checklist *models.Checklist) error {
+    // Проверяем, что у нас есть информация о зоне
+    topic, exists := s.topics[checklist.ZoneID]
+    if !exists {
+        return fmt.Errorf("топик для зоны %d не найден", checklist.ZoneID)
+    }
+
+    // Создаем сообщение об изменении описания
+    message := map[string]interface{}{
+        "Type":        "checklist",
+        "Subtype":     "description_updated",
+        "checklist":   checklist,
+    }
+
+    // Сериализуем сообщение
+    payload, err := json.Marshal(message)
+    if err != nil {
+        return fmt.Errorf("ошибка сериализации сообщения об изменении описания: %v", err)
+    }
+
+    // Публикуем сообщение в топик зоны
+    token := s.client.Publish(topic, 0, false, payload)
+    token.Wait()
+
+    if token.Error() != nil {
+        return fmt.Errorf("ошибка публикации в топик %s: %v", topic, token.Error())
+    }
+
+    log.Printf("✅ Сообщение об изменении описания чек-листа %d опубликовано в топик %s", checklist.ID, topic)
+
+    // Также публикуем в админский топик
+    token = s.client.Publish(s.adminTopic, 0, false, payload)
+    token.Wait()
+
+    if token.Error() != nil {
+        return fmt.Errorf("ошибка публикации в админский топик %s: %v", s.adminTopic, token.Error())
+    }
+
+    log.Printf("✅ Уведомление админу об изменении описания чек-листа %d отправлено", checklist.ID)
+
+    return nil
+}
+
+// PublishChecklistDeleted публикует сообщение об удалении чеклиста
+func (s *MQTTService) PublishChecklistDeleted(checklist *models.Checklist) error {
+    // Проверяем, что у нас есть информация о зоне
+    topic, exists := s.topics[checklist.ZoneID]
+    if !exists {
+        return fmt.Errorf("топик для зоны %d не найден", checklist.ZoneID)
+    }
+
+    // Создаем сообщение об удалении
+    message := map[string]interface{}{
+        "Type":        "checklist",
+        "Subtype":     "deleted",
+        "checklist":   checklist,
+    }
+
+    // Сериализуем сообщение
+    payload, err := json.Marshal(message)
+    if err != nil {
+        return fmt.Errorf("ошибка сериализации сообщения об удалении: %v", err)
+    }
+
+    // Публикуем сообщение в топик зоны
+    token := s.client.Publish(topic, 0, false, payload)
+    token.Wait()
+
+    if token.Error() != nil {
+        return fmt.Errorf("ошибка публикации в топик %s: %v", topic, token.Error())
+    }
+
+    log.Printf("✅ Сообщение об удалении чек-листа %d опубликовано в топик %s", checklist.ID, topic)
+
+    // Также публикуем в админский топик
+    token = s.client.Publish(s.adminTopic, 0, false, payload)
+    token.Wait()
+
+    if token.Error() != nil {
+        return fmt.Errorf("ошибка публикации в админский топик %s: %v", s.adminTopic, token.Error())
+    }
+
+    log.Printf("✅ Уведомление админу об удалении чек-листа %d отправлено", checklist.ID)
+
+    return nil
+}
 
 // PublishChecklistConfirmation публикует сообщение об изменении статуса подтверждения чек-листа в соответствующий топик
 func (s *MQTTService) PublishChecklistConfirmation(checklist *models.Checklist) error {
@@ -217,26 +306,75 @@ adminNotification := map[string]interface{}{
 
 	return nil
 }
+// PublishChecklistStatus публикует сообщение об изменении статуса выполнения чек-листа
+func (s *MQTTService) PublishChecklistStatus(checklist *models.Checklist) error {
+    // Проверяем, что у нас есть информация о зоне
+    topic, exists := s.topics[checklist.ZoneID]
+    if !exists {
+        return fmt.Errorf("топик для зоны %d не найден", checklist.ZoneID)
+    }
 
-// PublishChecklistPhoto публикует сообщение о загрузке фото чек-листа в соответствующий топик
-func (s *MQTTService) PublishChecklistPhoto(checklist *models.Checklist) error {
+    // Создаем максимально полное сообщение об изменении статуса выполнения
+    adminNotification := map[string]interface{}{
+        "Type":        "checklist",
+        "Subtype":     "status_changed",
+        "checklist":   checklist,
+    }
+
+    // Сериализуем сообщение
+    payload, err := json.Marshal(adminNotification)
+    if err != nil {
+        return fmt.Errorf("ошибка сериализации сообщения об изменении статуса: %v", err)
+    }
+
+    // Публикуем сообщение в топик зоны
+    token := s.client.Publish(topic, 0, false, payload)
+    token.Wait()
+
+    if token.Error() != nil {
+        return fmt.Errorf("ошибка публикации в топик %s: %v", topic, token.Error())
+    }
+
+    log.Printf("✅ Сообщение об изменении статуса выполнения чек-листа %d опубликовано в топик %s", checklist.ID, topic)
+
+    // Также публикуем такое же сообщение в админский топик
+    token = s.client.Publish(s.adminTopic, 0, false, payload)
+    token.Wait()
+
+    if token.Error() != nil {
+        return fmt.Errorf("ошибка публикации в админский топик %s: %v", s.adminTopic, token.Error())
+    }
+
+    log.Printf("✅ Уведомление админу об изменении статуса выполнения чек-листа %d отправлено", checklist.ID)
+
+    return nil
+}
+
+// PublishChecklistPhotoAdded публикует сообщение о добавлении нового фото к чеклисту
+func (s *MQTTService) PublishChecklistPhotoAdded(checklist *models.Checklist) error {
 	// Проверяем, что у нас есть информация о зоне
 	topic, exists := s.topics[checklist.ZoneID]
 	if !exists {
 		return fmt.Errorf("топик для зоны %d не найден", checklist.ZoneID)
 	}
-
-	// Создаем максимально полное сообщение о загрузке фото
-	adminNotification := map[string]interface{}{
+// Подсчитываем количество фото
+    photoCount := 0
+    if checklist.Photo != "" {
+        photoCount = len(strings.Split(checklist.Photo, ","))
+    }
+	// Создаем максимально полное сообщение о добавлении фото
+	message := map[string]interface{}{
 		"Type":        "checklist",
 		"Subtype":     "photo_uploaded",
-		"checklist": checklist,
+		"checklist":   checklist,
+		"total_photos": photoCount,
+		"timestamp":   time.Now().Format(time.RFC3339),
 	}
 
 	// Сериализуем сообщение
-	payload, err := json.Marshal(adminNotification)
+	payload, err := json.Marshal(message)
 	if err != nil {
-		return fmt.Errorf("ошибка сериализации сообщения о загрузке фото: %v", err)
+		return fmt.Errorf("ошибка сериализации сообщения о добавлении фото: %v", err)
 	}
 
 	// Публикуем сообщение в топик зоны
@@ -247,7 +385,7 @@ func (s *MQTTService) PublishChecklistPhoto(checklist *models.Checklist) error {
 		return fmt.Errorf("ошибка публикации в топик %s: %v", topic, token.Error())
 	}
 
-	log.Printf("✅ Сообщение о загрузке фото чек-листа %d опубликовано в топик %s", checklist.ID, topic)
+	log.Printf("✅ Сообщение о добавлении фото чек-листа %d опубликовано в топик %s", checklist.ID, topic)
 
 	// Также публикуем такое же сообщение в админский топик
 	token = s.client.Publish(s.adminTopic, 0, false, payload)
@@ -257,12 +395,10 @@ func (s *MQTTService) PublishChecklistPhoto(checklist *models.Checklist) error {
 		return fmt.Errorf("ошибка публикации в админский топик %s: %v", s.adminTopic, token.Error())
 	}
 
-	log.Printf("✅ Уведомление админу о загрузке фото чек-листа %d отправлено", checklist.ID)
+	log.Printf("✅ Уведомление админу о добавлении фото чек-листа %d отправлено", checklist.ID)
 
 	return nil
 }
-
-
 
 // Close закрывает соединение с MQTT
 func (s *MQTTService) Close() {
@@ -390,3 +526,5 @@ var connectHandler mqtt.OnConnectHandler = func(client mqtt.Client) {
 var connectLostHandler mqtt.ConnectionLostHandler = func(client mqtt.Client, err error) {
 	log.Printf("❌ Подключение к MQTT потеряно: %v", err)
 }
+
+

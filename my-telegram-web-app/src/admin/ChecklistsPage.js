@@ -87,6 +87,140 @@ const ChecklistsPage = ({ userData, zoneId, onBack, onBackToZones, fullWidth = f
     );
   };
 
+  // Функция для обновления описания чек-листа
+const updateChecklistDescription = async (checklistId, currentDescription) => {
+  const newDescription = prompt('Введите новое описание чек-листа:', currentDescription);
+  
+  if (!newDescription || newDescription.trim() === '') {
+    return;
+  }
+
+  try {
+    const response = await fetch(`${API_URL}/update-checklist-description`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        checklist_id: checklistId,
+        description: newDescription.trim(),
+        admin_id: userData.id,
+        telegram_id: userData.telegram_id,
+      }),
+    });
+
+    if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+    const result = await response.json();
+
+    if (result.status === 'success') {
+      // Локально обновляем описание
+      updateChecklist({
+        id: checklistId,
+        description: newDescription.trim()
+      });
+      
+      safeShowAlert(`✅ Описание чек-листа #${checklistId} обновлено`);
+    } else {
+      throw new Error(result.message || 'Ошибка при обновлении описания');
+    }
+  } catch (err) {
+    console.error('❌ Ошибка обновления описания чек-листа:', err);
+    safeShowAlert('Ошибка при обновлении описания: ' + err.message);
+  }
+};
+
+
+// Добавьте состояние для кастомной модалки подтверждения
+const [deleteModal, setDeleteModal] = useState({
+  isOpen: false,
+  checklistId: null,
+  description: ''
+});
+
+// Обновленная функция удаления
+const deleteChecklist = (checklistId, description) => {
+  setDeleteModal({
+    isOpen: true,
+    checklistId,
+    description
+  });
+};
+
+// Функция подтверждения удаления
+const confirmDelete = () => {
+  if (deleteModal.checklistId) {
+    performChecklistDelete(deleteModal.checklistId);
+  }
+  setDeleteModal({ isOpen: false, checklistId: null, description: '' });
+};
+
+// Функция отмены удаления
+const cancelDelete = () => {
+  setDeleteModal({ isOpen: false, checklistId: null, description: '' });
+};
+
+// Функция для удаления чек-листа
+// const deleteChecklist = async (checklistId, description) => {
+//   const confirmDelete = confirm(`Вы уверены, что хотите удалить чек-лист?\n\n"${description}"`);
+  
+//   if (!confirmDelete) {
+//     return;
+//   }
+
+//   try {
+//     const response = await fetch(`${API_URL}/delete-checklist`, {
+//       method: 'POST',
+//       headers: { 'Content-Type': 'application/json' },
+//       body: JSON.stringify({
+//         checklist_id: checklistId,
+//         admin_id: userData.id,
+//         telegram_id: userData.telegram_id,
+//       }),
+//     });
+
+//     if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+//     const result = await response.json();
+
+//     if (result.status === 'success') {
+//       // Удаляем чек-лист из локального состояния
+//       setAllChecklists(prev => prev.filter(c => c.id !== checklistId));
+//       safeShowAlert(`🗑️ Чек-лист #${checklistId} удален`);
+//     } else {
+//       throw new Error(result.message || 'Ошибка при удалении чек-листа');
+//     }
+//   } catch (err) {
+//     console.error('❌ Ошибка удаления чек-листа:', err);
+//     safeShowAlert('Ошибка при удалении чек-листа: ' + err.message);
+//   }
+// };
+
+// И добавьте эту функцию для выполнения удаления (она должна быть после confirmDelete):
+const performChecklistDelete = async (checklistId) => {
+  try {
+    const response = await fetch(`${API_URL}/delete-checklist`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        checklist_id: checklistId,
+        admin_id: userData.id,
+        telegram_id: userData.telegram_id,
+      }),
+    });
+
+    if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+    const result = await response.json();
+
+    if (result.status === 'success') {
+      // Удаляем чек-лист из локального состояния
+      setAllChecklists(prev => prev.filter(c => c.id !== checklistId));
+      safeShowAlert(`🗑️ Чек-лист #${checklistId} удален`);
+    } else {
+      throw new Error(result.message || 'Ошибка при удалении чек-листа');
+    }
+  } catch (err) {
+    console.error('❌ Ошибка удаления чек-листа:', err);
+    safeShowAlert('Ошибка при удалении чек-листа: ' + err.message);
+  }
+};
+
   // Загрузка всех зон
   const fetchZones = async () => {
     try {
@@ -359,8 +493,42 @@ const ChecklistsPage = ({ userData, zoneId, onBack, onBackToZones, fullWidth = f
             worker_id: checklistData.admin_id // Сохраняем ID пользователя
           });
           
+          // Применяем фильтры локально, чтобы обновить отображение
+          applyFiltersLocally();
+          
           safeShowAlert(`📸 Пользователь загрузил фото для чек-листа #${checklistData.id}`);
         }
+
+        // Обработка сообщений об изменении статуса выполнения
+        else if (lastMessage.Subtype === 'status_changed' && lastMessage.Type === 'checklist') {
+          console.log('📥 Получено уведомление об изменении статуса выполнения:', lastMessage);
+          
+          // Извлекаем данные чек-листа из сообщения
+          const checklistData = lastMessage.checklist;
+          
+          // Обновляем статус чек-листа
+          updateChecklist({
+            id: checklistData.id,
+            status: checklistData.status,
+            confirmed: checklistData.confirmed || false,
+            zone_id: checklistData.zone_id,
+            description: checklistData.description,
+            date: checklistData.date,
+            issue_time: checklistData.issue_time,
+            photo: checklistData.photo || null,
+            important: checklistData.important || false
+          });
+          
+          // Применяем фильтры локально, чтобы обновить отображение
+          applyFiltersLocally();
+          
+          if (checklistData.status) {
+            safeShowAlert(`✅ Чек-лист #${checklistData.id} отмечен как выполненный`);
+          } else {
+            safeShowAlert(`❌ Чек-лист #${checklistData.id} отмечен как невыполненный`);
+          }
+        }
+
         
         // Обработка сообщений о фото (альтернативный формат)
         else if (lastMessage.type === 'photo') {
@@ -373,6 +541,9 @@ const ChecklistsPage = ({ userData, zoneId, onBack, onBackToZones, fullWidth = f
             status: true, // Устанавливаем статус выполнен при загрузке фото
             worker_id: lastMessage.worker_id // Сохраняем ID пользователя
           });
+          
+          // Применяем фильтры локально, чтобы обновить отображение
+          applyFiltersLocally();
           
           safeShowAlert(`📸 Пользователь загрузил фото для чек-листа #${lastMessage.checklist_id}`);
         }
@@ -394,7 +565,29 @@ const ChecklistsPage = ({ userData, zoneId, onBack, onBackToZones, fullWidth = f
             safeShowAlert(`⏳ Чек-лист #${lastMessage.checklist_id} выполнен, ожидает подтверждения`);
           }
         }
-        
+        // Обработка сообщений об изменении описания
+        else if (lastMessage.Subtype === 'description_updated' && lastMessage.Type === 'checklist') {
+          console.log('📥 Получено уведомление об изменении описания:', lastMessage);
+          
+          const checklistData = lastMessage.checklist;
+          updateChecklist({
+            id: checklistData.id,
+            description: checklistData.description
+          });
+          
+          safeShowAlert(`✏️ Описание чек-листа #${checklistData.id} обновлено`);
+        }
+
+        // Обработка сообщений об удалении
+        else if (lastMessage.Subtype === 'deleted' && lastMessage.Type === 'checklist') {
+          console.log('📥 Получено уведомление об удалении:', lastMessage);
+          
+          const checklistData = lastMessage.checklist;
+          setAllChecklists(prev => prev.filter(c => c.id !== checklistData.id));
+          
+          safeShowAlert(`🗑️ Чек-лист #${checklistData.id} удален`);
+        }
+
         // Обработка старого формата сообщений
         else if (lastMessage.type === 'checklist') {
           console.log('📥 Получен новый чек-лист (старый формат):', lastMessage);
@@ -779,6 +972,45 @@ const ChecklistsPage = ({ userData, zoneId, onBack, onBackToZones, fullWidth = f
                       >
                         {checklist.confirmed ? '☑ Подтверждено' : checklist.status ? '✅ Подтвердить' : '⏳ Ожидает выполнения'}
                       </span>
+                      <div
+  style={{
+    display: 'flex',
+    gap: '5px',
+    marginTop: '8px',
+    justifyContent: 'flex-end',
+  }}
+>
+  <button
+    onClick={() => updateChecklistDescription(checklist.id, checklist.description)}
+    style={{
+      padding: '4px 8px',
+      backgroundColor: '#4299e1',
+      color: 'white',
+      border: 'none',
+      borderRadius: '6px',
+      cursor: 'pointer',
+      fontSize: '10px',
+    }}
+    title="Редактировать описание"
+  >
+    ✏️
+  </button>
+<button
+  onClick={() => deleteChecklist(checklist.id, checklist.description)}
+  style={{
+    padding: '4px 8px',
+    backgroundColor: '#e53e3e',
+    color: 'white',
+    border: 'none',
+    borderRadius: '6px',
+    cursor: 'pointer',
+    fontSize: '10px',
+  }}
+  title="Удалить чек-лист"
+>
+  🗑️
+</button>
+</div>
                     </div>
                   </div>
 
@@ -839,6 +1071,81 @@ const ChecklistsPage = ({ userData, zoneId, onBack, onBackToZones, fullWidth = f
           </div>
         )}
       </div>
+
+{/* Кастомная модалка подтверждения удаления */}
+{deleteModal.isOpen && (
+  <div
+    style={{
+      position: 'fixed',
+      top: 0,
+      left: 0,
+      right: 0,
+      bottom: 0,
+      backgroundColor: 'rgba(0,0,0,0.5)',
+      display: 'flex',
+      justifyContent: 'center',
+      alignItems: 'center',
+      zIndex: 1000,
+      padding: '20px',
+    }}
+  >
+    <div
+      style={{
+        backgroundColor: 'white',
+        padding: '20px',
+        borderRadius: '12px',
+        width: '100%',
+        maxWidth: '400px',
+      }}
+    >
+      <h3 style={{ marginTop: 0, marginBottom: '15px', color: '#e53e3e' }}>
+        🗑️ Подтверждение удаления
+      </h3>
+      <p style={{ marginBottom: '20px' }}>
+        Вы уверены, что хотите удалить чек-лист?
+      </p>
+      <p style={{ 
+        marginBottom: '20px', 
+        padding: '10px', 
+        backgroundColor: '#f7fafc', 
+        borderRadius: '6px',
+        fontStyle: 'italic'
+      }}>
+        "{deleteModal.description}"
+      </p>
+      <div style={{ display: 'flex', gap: '10px' }}>
+        <button
+          onClick={cancelDelete}
+          style={{
+            padding: '10px 20px',
+            backgroundColor: '#a0aec0',
+            color: 'white',
+            border: 'none',
+            borderRadius: '8px',
+            cursor: 'pointer',
+            flex: 1,
+          }}
+        >
+          Отмена
+        </button>
+        <button
+          onClick={confirmDelete}
+          style={{
+            padding: '10px 20px',
+            backgroundColor: '#e53e3e',
+            color: 'white',
+            border: 'none',
+            borderRadius: '8px',
+            cursor: 'pointer',
+            flex: 1,
+          }}
+        >
+          Удалить
+        </button>
+      </div>
+    </div>
+  </div>
+)}
 
       {/* Модальное окно создания чек-листа */}
       {showCreateForm && (

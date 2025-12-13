@@ -48,7 +48,7 @@ export const AdminMQTTProvider = ({ children, userData }) => {
     }
 
     // ТОЧНО ТАК ЖЕ КАК В РАБОЧЕМ HTML ПРИМЕРЕ!
-    const client = window.mqtt.connect('wss://gorpark25.ru:3000/mqtt', {
+    const client = window.mqtt.connect('wss://fly-park.ru:3000/mqtt', {
       clientId: 'admin_' + userData.id + '_' + Math.random().toString(16).substr(2, 8),
       keepalive: 30
     });

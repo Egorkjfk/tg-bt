@@ -1,6 +1,5 @@
 import React, { useEffect, useState } from 'react'
 import { useShowPopup } from '@vkruglikov/react-telegram-web-app'
-import SimpleUserInfo from './SimpleUserInfo'
 import ConfirmedUserPage from './ConfirmedUserPage'
 import PendingConfirmationPage from './PendingConfirmationPage'
 import AdminPanel from './admin/AdminPanel'

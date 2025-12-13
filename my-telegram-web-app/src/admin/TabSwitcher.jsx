@@ -58,6 +58,34 @@ const TabSwitcher = ({ activeTab, setActiveTab }) => (
 		>
 			💰 ЗП
 		</button>
+		<button
+			onClick={() => setActiveTab('bonuses-fines')}
+			style={{
+				padding: '10px 20px',
+				backgroundColor: activeTab === 'bonuses-fines' ? '#4299e1' : '#e2e8f0',
+				color: activeTab === 'bonuses-fines' ? 'white' : 'black',
+				border: 'none',
+				borderRadius: '8px',
+				cursor: 'pointer',
+				flex: 1,
+			}}
+		>
+			🎁 Премии и штрафы
+	</button>
+	<button
+			onClick={() => setActiveTab('all-schedules')}
+			style={{
+				padding: '10px 20px',
+				backgroundColor: activeTab === 'all-schedules' ? '#4299e1' : '#e2e8f0',
+				color: activeTab === 'all-schedules' ? 'white' : 'black',
+				border: 'none',
+				borderRadius: '8px',
+				cursor: 'pointer',
+				flex: 1,
+			}}
+		>
+			📅 Общее расписание
+	</button>
 	</div>
 )
 

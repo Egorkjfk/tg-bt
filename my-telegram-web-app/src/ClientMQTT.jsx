@@ -29,7 +29,7 @@ export const ClientMQTTProvider = ({ children, userData, onUserDataUpdate }) => 
 
     console.log('🔄 Клиент начинает подключение к MQTT...');
 
-    const client = mqtt.connect('wss://gorpark25.ru:3000/mqtt');
+    const client = mqtt.connect('wss://fly-park.ru:3000/mqtt');
     client.on('connect', () => {
       
       console.log('✅ Клиент подключен к MQTT');

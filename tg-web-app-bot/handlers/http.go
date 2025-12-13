@@ -15,6 +15,8 @@ import (
 	"tg-web-app-bot/models"
 	"tg-web-app-bot/services"
 	"time"
+
+	
 )
 
 type HTTPHandlers struct {
@@ -145,7 +147,85 @@ func (h *HTTPHandlers) HandleGetAllUser(w http.ResponseWriter, r *http.Request) 
     w.Header().Set("Content-Type", "application/json")
     json.NewEncoder(w).Encode(response)
 }
+// HandleDeleteUser - удаление сотрудника
+func (h *HTTPHandlers) HandleDeleteUser(w http.ResponseWriter, r *http.Request) {
+    var requestData struct {
+        UserID     int64 `json:"user_id"`
+        AdminID    int64 `json:"admin_id"`
+        TelegramID int64 `json:"telegram_id"`
+    }
+    
+    decoder := json.NewDecoder(r.Body)
+    err := decoder.Decode(&requestData)
+    if err != nil {
+        log.Printf("❌ Ошибка парсинга JSON для удаления пользователя: %v", err)
+        http.Error(w, "Ошибка парсинга JSON", http.StatusBadRequest)
+        return
+    }
 
+    // Проверяем, что пользователь является админом
+    adminUser, err := h.userService.GetUser(requestData.TelegramID, requestData.AdminID)
+    if err != nil || adminUser == nil {
+        log.Printf("❌ Ошибка получения пользователя админа")
+        http.Error(w, "Ошибка аутентификации", http.StatusUnauthorized)
+        return
+    }
+    
+    if !adminUser.IsAdmin {
+        log.Printf("❌ Пользователь не является администратором")
+        http.Error(w, "Недостаточно прав", http.StatusForbidden)
+        return
+    }
+
+    // Проверяем, что администратор не пытается удалить самого себя
+    if requestData.UserID == requestData.AdminID {
+        log.Printf("❌ Администратор не может удалить самого себя")
+        http.Error(w, "Администратор не может удалить самого себя", http.StatusBadRequest)
+        return
+    }
+
+    // Получаем информацию о пользователе, которого собираемся удалить
+    userToDelete, err := h.userService.GetUserByID(requestData.UserID)
+    if err != nil || userToDelete == nil {
+        log.Printf("❌ Пользователь с ID %d не найден", requestData.UserID)
+        http.Error(w, "Пользователь не найден", http.StatusNotFound)
+        return
+    }
+
+    // Проверяем, что мы не пытаемся удалить другого администратора
+    if userToDelete.IsAdmin {
+        log.Printf("❌ Нельзя удалить другого администратора")
+        http.Error(w, "Нельзя удалить другого администратора", http.StatusForbidden)
+        return
+    }
+
+    // Удаляем пользователя
+    err = h.userService.DeleteUser(requestData.UserID)
+    if err != nil {
+        log.Printf("❌ Ошибка удаления пользователя: %v", err)
+        http.Error(w, "Ошибка удаления пользователя", http.StatusInternalServerError)
+        return
+    }
+
+    response := map[string]interface{}{
+        "status":  "success",
+        "message": fmt.Sprintf("Пользователь %s (ID: %d) успешно удален", 
+            userToDelete.FirstName + " " + userToDelete.LastName, 
+            requestData.UserID),
+        "deleted_user": map[string]interface{}{
+            "id":         userToDelete.ID,
+            "username":   userToDelete.Username,
+            "first_name": userToDelete.FirstName,
+            "last_name":  userToDelete.LastName,
+            "telegram_id": userToDelete.TelegramID,
+        },
+    }
+
+    w.Header().Set("Content-Type", "application/json")
+    json.NewEncoder(w).Encode(response)
+    log.Printf("✅ Пользователь ID=%d успешно удален администратором ID=%d", 
+        requestData.UserID, requestData.AdminID)
+}
 
 // HandleGetAllZones - получение всех зон
 func (h *HTTPHandlers) HandleGetAllZones(w http.ResponseWriter, r *http.Request) {
@@ -402,60 +482,60 @@ func (h *HTTPHandlers) HandleGetChecklists(w http.ResponseWriter, r *http.Reques
     log.Printf("✅ Список чеклистов отправлен, количество: %d", len(checklists))
 }
 
-// HandleUpdateChecklist - обновление чеклиста
-func (h *HTTPHandlers) HandleUpdateChecklist(w http.ResponseWriter, r *http.Request) {
-    var requestData struct {
-        ChecklistID int64  `json:"checklist_id"`
-        Photo       string `json:"photo"`
-        AdminID     int64 `json:"admin_id"`
-        AdminTgId   int64  `json:"telegram_id"`
-    }
+// // HandleUpdateChecklist - обновление чеклиста
+// func (h *HTTPHandlers) HandleUpdateChecklist(w http.ResponseWriter, r *http.Request) {
+//     var requestData struct {
+//         ChecklistID int64  `json:"checklist_id"`
+//         Photo       string `json:"photo"`
+//         AdminID     int64 `json:"admin_id"`
+//         AdminTgId   int64  `json:"telegram_id"`
+//     }
     
-    decoder := json.NewDecoder(r.Body)
-    err := decoder.Decode(&requestData)
-    if err != nil {
-        log.Printf("❌ Ошибка парсинга JSON для обновления чеклиста: %v", err)
-        http.Error(w, "Ошибка парсинга JSON", http.StatusBadRequest)
-        return
-    }
+//     decoder := json.NewDecoder(r.Body)
+//     err := decoder.Decode(&requestData)
+//     if err != nil {
+//         log.Printf("❌ Ошибка парсинга JSON для обновления чеклиста: %v", err)
+//         http.Error(w, "Ошибка парсинга JSON", http.StatusBadRequest)
+//         return
+//     }
 
-    log.Printf("✏️ Получен запрос на обновление чеклиста:")
-    log.Printf("📋 ChecklistID: %d", requestData.ChecklistID)
-    log.Printf("🖼️ Photo: %s", requestData.Photo)
-    log.Printf("👤 AdminID: %d", requestData.AdminID)
-    log.Printf("👤 AdminTgId: %d", requestData.AdminTgId)
+//     log.Printf("✏️ Получен запрос на обновление чеклиста:")
+//     log.Printf("📋 ChecklistID: %d", requestData.ChecklistID)
+//     log.Printf("🖼️ Photo: %s", requestData.Photo)
+//     log.Printf("👤 AdminID: %d", requestData.AdminID)
+//     log.Printf("👤 AdminTgId: %d", requestData.AdminTgId)
 
-    // Проверяем, что пользователь является админом
-    adminUser, err := h.userService.GetUser(requestData.AdminTgId, requestData.AdminID)
-    if err != nil || adminUser == nil {
-        log.Printf("❌ Ошибка получения пользователя админа")
-        http.Error(w, "Ошибка аутентификации", http.StatusUnauthorized)
-        return
-    }
+//     // Проверяем, что пользователь является админом
+//     adminUser, err := h.userService.GetUser(requestData.AdminTgId, requestData.AdminID)
+//     if err != nil || adminUser == nil {
+//         log.Printf("❌ Ошибка получения пользователя админа")
+//         http.Error(w, "Ошибка аутентификации", http.StatusUnauthorized)
+//         return
+//     }
     
-    if !adminUser.IsAdmin {
-        log.Printf("❌ Пользователь не является администратором")
-        http.Error(w, "Недостаточно прав", http.StatusForbidden)
-        return
-    }
+//     if !adminUser.IsAdmin {
+//         log.Printf("❌ Пользователь не является администратором")
+//         http.Error(w, "Недостаточно прав", http.StatusForbidden)
+//         return
+//     }
 
-    // Обновляем чеклист
-    err = h.userService.UpdateChecklist(requestData.ChecklistID, requestData.Photo)
-    if err != nil {
-        log.Printf("❌ Ошибка обновления чеклиста: %v", err)
-        http.Error(w, "Ошибка обновления чеклиста", http.StatusInternalServerError)
-        return
-    }
+//     // Обновляем чеклист
+//     err = h.userService.UpdateChecklist(requestData.ChecklistID, requestData.Photo)
+//     if err != nil {
+//         log.Printf("❌ Ошибка обновления чеклиста: %v", err)
+//         http.Error(w, "Ошибка обновления чеклиста", http.StatusInternalServerError)
+//         return
+//     }
 
-    response := map[string]interface{}{
-        "status":  "success",
-        "message": "Чеклист успешно обновлен",
-    }
+//     response := map[string]interface{}{
+//         "status":  "success",
+//         "message": "Чеклист успешно обновлен",
+//     }
 
-    w.Header().Set("Content-Type", "application/json")
-    json.NewEncoder(w).Encode(response)
-    log.Printf("✅ Чеклист ID=%d успешно обновлен", requestData.ChecklistID)
-}
+//     w.Header().Set("Content-Type", "application/json")
+//     json.NewEncoder(w).Encode(response)
+//     log.Printf("✅ Чеклист ID=%d успешно обновлен", requestData.ChecklistID)
+// }
 
 // HandleUpdateChecklistConfirmed - обновление статуса подтверждения чеклиста
 func (h *HTTPHandlers) HandleUpdateChecklistConfirmed(w http.ResponseWriter, r *http.Request) {
@@ -527,6 +607,158 @@ func (h *HTTPHandlers) HandleUpdateChecklistConfirmed(w http.ResponseWriter, r *
          log.Printf("✅ Статус подтверждения чеклиста ID=%d успешно обновлен", requestData.ChecklistID)
 }
 
+// HandleUpdateChecklistStatus - обновление статуса выполнения чеклиста
+func (h *HTTPHandlers) HandleUpdateChecklistStatus(w http.ResponseWriter, r *http.Request) {
+    var requestData struct {
+        ChecklistID int64 `json:"checklist_id"`
+        Status      bool  `json:"status"`
+        UserID     int64 `json:"user_id"`
+        UserTgId   int64 `json:"telegram_id"`
+    }
+    
+    decoder := json.NewDecoder(r.Body)
+    err := decoder.Decode(&requestData)
+    if err != nil {
+        log.Printf("❌ Ошибка парсинга JSON для обновления статуса чеклиста: %v", err)
+        http.Error(w, "Ошибка парсинга JSON", http.StatusBadRequest)
+        return
+    }
+    // Проверяем, что чеклист принадлежит пользователю - ВСЁ В ОДНОМ ЗАПРОСЕ!
+    checklist, err := h.userService.GetWorkerChecklistByID(requestData.UserID, requestData.ChecklistID)
+    if err != nil || checklist == nil {
+        log.Printf("❌ Чеклист ID=%d не принадлежит пользователю ID=%d или не существует: %v", 
+            requestData.ChecklistID, requestData.UserID, err)
+        http.Error(w, "Чеклист не найден или недостаточно прав", http.StatusForbidden)
+        return
+    }
+    checklist.Status = requestData.Status;
+
+    // Обновляем статус выполнения чеклиста
+    err = h.userService.UpdateChecklistStatus(checklist)
+    if err != nil {
+        log.Printf("❌ Ошибка обновления статуса чеклиста: %v", err)
+        http.Error(w, "Ошибка обновления статуса чеклиста", http.StatusInternalServerError)
+        return
+    }
+    
+    response := map[string]interface{}{
+        "status":  "success",
+        "message": "Статус выполнения чеклиста успешно обновлен",
+    }
+    
+    w.Header().Set("Content-Type", "application/json")
+    json.NewEncoder(w).Encode(response)
+    log.Printf("✅ Статус выполнения чеклиста ID=%d успешно обновлен", requestData.ChecklistID)
+}
+
+// HandleUpdateChecklistDescription - обновление описания чеклиста
+func (h *HTTPHandlers) HandleUpdateChecklistDescription(w http.ResponseWriter, r *http.Request) {
+    var requestData struct {
+        ChecklistID int64  `json:"checklist_id"`
+        Description string `json:"description"`
+        AdminID     int64  `json:"admin_id"`
+        AdminTgId   int64  `json:"telegram_id"`
+    }
+    
+    decoder := json.NewDecoder(r.Body)
+    err := decoder.Decode(&requestData)
+    if err != nil {
+        log.Printf("❌ Ошибка парсинга JSON для обновления описания чеклиста: %v", err)
+        http.Error(w, "Ошибка парсинга JSON", http.StatusBadRequest)
+        return
+    }
+
+    log.Printf("✏️ Получен запрос на обновление описания чеклиста:")
+    log.Printf("📋 ChecklistID: %d", requestData.ChecklistID)
+    log.Printf("📝 Description: %s", requestData.Description)
+    log.Printf("👤 AdminID: %d", requestData.AdminID)
+    log.Printf("👤 AdminTgId: %d", requestData.AdminTgId)
+
+    // Проверяем, что пользователь является админом
+    adminUser, err := h.userService.GetUser(requestData.AdminTgId, requestData.AdminID)
+    if err != nil || adminUser == nil {
+        log.Printf("❌ Ошибка получения пользователя админа")
+        http.Error(w, "Ошибка аутентификации", http.StatusUnauthorized)
+        return
+    }
+    
+    if !adminUser.IsAdmin {
+        log.Printf("❌ Пользователь не является администратором")
+        http.Error(w, "Недостаточно прав", http.StatusForbidden)
+        return
+    }
+
+    // Обновляем описание чеклиста
+    err = h.userService.UpdateChecklistDescription(requestData.ChecklistID, requestData.Description)
+    if err != nil {
+        log.Printf("❌ Ошибка обновления описания чеклиста: %v", err)
+        http.Error(w, "Ошибка обновления описания чеклиста", http.StatusInternalServerError)
+        return
+    }
+
+    response := map[string]interface{}{
+        "status":  "success",
+        "message": "Описание чеклиста успешно обновлено",
+    }
+
+    w.Header().Set("Content-Type", "application/json")
+    json.NewEncoder(w).Encode(response)
+    log.Printf("✅ Описание чеклиста ID=%d успешно обновлено", requestData.ChecklistID)
+}
+
+// HandleDeleteChecklist - удаление чеклиста
+func (h *HTTPHandlers) HandleDeleteChecklist(w http.ResponseWriter, r *http.Request) {
+    var requestData struct {
+        ChecklistID int64 `json:"checklist_id"`
+        AdminID     int64 `json:"admin_id"`
+        AdminTgId   int64 `json:"telegram_id"`
+    }
+    
+    decoder := json.NewDecoder(r.Body)
+    err := decoder.Decode(&requestData)
+    if err != nil {
+        log.Printf("❌ Ошибка парсинга JSON для удаления чеклиста: %v", err)
+        http.Error(w, "Ошибка парсинга JSON", http.StatusBadRequest)
+        return
+    }
+
+    log.Printf("🗑️ Получен запрос на удаление чеклиста:")
+    log.Printf("📋 ChecklistID: %d", requestData.ChecklistID)
+    log.Printf("👤 AdminID: %d", requestData.AdminID)
+    log.Printf("👤 AdminTgId: %d", requestData.AdminTgId)
+
+    // Проверяем, что пользователь является админом
+    adminUser, err := h.userService.GetUser(requestData.AdminTgId, requestData.AdminID)
+    if err != nil || adminUser == nil {
+        log.Printf("❌ Ошибка получения пользователя админа")
+        http.Error(w, "Ошибка аутентификации", http.StatusUnauthorized)
+        return
+    }
+    
+    if !adminUser.IsAdmin {
+        log.Printf("❌ Пользователь не является администратором")
+        http.Error(w, "Недостаточно прав", http.StatusForbidden)
+        return
+    }
+
+    // Удаляем чеклист
+    err = h.userService.DeleteChecklist(requestData.ChecklistID)
+    if err != nil {
+        log.Printf("❌ Ошибка удаления чеклиста: %v", err)
+        http.Error(w, "Ошибка удаления чеклиста", http.StatusInternalServerError)
+        return
+    }
+
+    response := map[string]interface{}{
+        "status":  "success",
+        "message": "Чеклист успешно удален",
+    }
+
+    w.Header().Set("Content-Type", "application/json")
+    json.NewEncoder(w).Encode(response)
+    log.Printf("✅ Чеклист ID=%d успешно удален", requestData.ChecklistID)
+}
+
 // HandleCreateChecklist - создание нового чеклиста
 func (h *HTTPHandlers) HandleCreateChecklist(w http.ResponseWriter, r *http.Request) {
     var requestData struct {
@@ -589,6 +821,7 @@ func (h *HTTPHandlers) HandleCreateAutoChecklist(w http.ResponseWriter, r *http.
     var requestData struct {
         ZoneID      int64  `json:"zone_id"`
         Description string `json:"description"`
+        Important   bool       `json:"important"`
         AdminID     int64  `json:"admin_id"`
         AdminTgId   int64  `json:"telegram_id"`
     }
@@ -618,6 +851,7 @@ func (h *HTTPHandlers) HandleCreateAutoChecklist(w http.ResponseWriter, r *http.
     autochek := &models.Auto_cheklst{
         ZoneID:      requestData.ZoneID,
         Description: requestData.Description,
+        Important: requestData.Important,
     }
 
     // Создаем чеклист
@@ -731,6 +965,57 @@ func (h *HTTPHandlers) HandleGetAutoChecklists(w http.ResponseWriter, r *http.Re
     w.Header().Set("Content-Type", "application/json")
     json.NewEncoder(w).Encode(response)
     log.Printf("✅ Список авточеклистов отправлен, количество: %d", len(checklists))
+}
+
+// HandleUpdateAutoChecklist - обновление авто-чеклиста
+func (h *HTTPHandlers) HandleUpdateAutoChecklist(w http.ResponseWriter, r *http.Request) {
+    var requestData struct {
+        AutoChecklistID int64  `json:"auto_checklist_id"`
+        Description     string `json:"description"`
+        Important       bool   `json:"important"`
+        AdminID         int64  `json:"admin_id"`
+        AdminTgId       int64  `json:"telegram_id"`
+    }
+    
+    decoder := json.NewDecoder(r.Body)
+    err := decoder.Decode(&requestData)
+    if err != nil {
+        log.Printf("❌ Ошибка парсинга JSON для обновления авто-чеклиста: %v", err)
+        http.Error(w, "Ошибка парсинга JSON", http.StatusBadRequest)
+        return
+    }
+
+
+    // Проверяем, что пользователь является админом
+    adminUser, err := h.userService.GetUser(requestData.AdminTgId, requestData.AdminID)
+    if err != nil || adminUser == nil {
+        log.Printf("❌ Ошибка получения пользователя админа")
+        http.Error(w, "Ошибка аутентификации", http.StatusUnauthorized)
+        return
+    }
+    
+    if !adminUser.IsAdmin {
+        log.Printf("❌ Пользователь не является администратором")
+        http.Error(w, "Недостаточно прав", http.StatusForbidden)
+        return
+    }
+
+    // Обновляем авто-чеклист
+    err = h.userService.UpdateAutoChecklist(requestData.AutoChecklistID, requestData.Description, requestData.Important)
+    if err != nil {
+        log.Printf("❌ Ошибка обновления авто-чеклиста: %v", err)
+        http.Error(w, "Ошибка обновления авто-чеклиста", http.StatusInternalServerError)
+        return
+    }
+
+    response := map[string]interface{}{
+        "status":  "success",
+        "message": "Авто-чеклист успешно обновлен",
+    }
+
+    w.Header().Set("Content-Type", "application/json")
+    json.NewEncoder(w).Encode(response)
+    log.Printf("✅ Авто-чеклист ID=%d успешно обновлен", requestData.AutoChecklistID)
 }
 
 //---------------------------------------------------------------
@@ -1165,7 +1450,7 @@ func (h *HTTPHandlers) HandleGetAllWorkersWeeklySchedule(w http.ResponseWriter, 
 
     w.Header().Set("Content-Type", "application/json")
     json.NewEncoder(w).Encode(response)
-   }
+}
   
    // HandleUpdateUserConfirmed - обновление статуса подтверждения пользователя
    func (h *HTTPHandlers) HandleUpdateUserConfirmed(w http.ResponseWriter, r *http.Request) {
@@ -1411,145 +1696,274 @@ func (h *HTTPHandlers) HandleGetCurrentDate(w http.ResponseWriter, r *http.Reque
 }
 
 // HandleUploadChecklistPhoto - загрузка фото для чеклиста
-func (h *HTTPHandlers) HandleUploadChecklistPhoto(w http.ResponseWriter, r *http.Request) {
-	// Ограничиваем размер загружаемого файла до 10MB
-	r.Body = http.MaxBytesReader(w, r.Body, 10<<20)
+// func (h *HTTPHandlers) HandleUploadChecklistPhoto(w http.ResponseWriter, r *http.Request) {
+// 	// Ограничиваем размер загружаемого файла до 10MB
+// 	r.Body = http.MaxBytesReader(w, r.Body, 10<<20)
 	
-	// Парсим JSON из тела запроса
-	var requestData struct {
-		ChecklistID int64  `json:"checklist_id"`
-		PhotoData   string `json:"photo_data"` // Base64 строка фото или несколько строк, разделенных запятой
-		WorkerID    int64  `json:"worker_id"`
-		TelegramID  int64  `json:"telegram_id"`
-	}
+// 	// Парсим JSON из тела запроса
+// 	var requestData struct {
+// 		ChecklistID int64  `json:"checklist_id"`
+// 		PhotoData   string `json:"photo_data"` // Base64 строка фото или несколько строк, разделенных запятой
+// 		WorkerID    int64  `json:"worker_id"`
+// 		TelegramID  int64  `json:"telegram_id"`
+// 	}
 	
-	decoder := json.NewDecoder(r.Body)
-	err := decoder.Decode(&requestData)
-	if err != nil {
-		log.Printf("❌ Ошибка парсинга JSON: %v", err)
-	http.Error(w, "Ошибка парсинга JSON", http.StatusBadRequest)
-		return
-	}
+// 	decoder := json.NewDecoder(r.Body)
+// 	err := decoder.Decode(&requestData)
+// 	if err != nil {
+// 		log.Printf("❌ Ошибка парсинга JSON: %v", err)
+// 	http.Error(w, "Ошибка парсинга JSON", http.StatusBadRequest)
+// 		return
+// 	}
 	
-	// Проверяем, что пользователь загружает фото для своего чеклиста
-	requestingUser, err := h.userService.GetUser(requestData.TelegramID, requestData.WorkerID)
-	if err != nil || requestingUser == nil {
-		log.Printf("❌ Ошибка получения пользователя: %v", err)
-		http.Error(w, "Ошибка аутентификации", http.StatusUnauthorized)
-		return
-	}
+// 	// Проверяем, что пользователь загружает фото для своего чеклиста
+// 	requestingUser, err := h.userService.GetUser(requestData.TelegramID, requestData.WorkerID)
+// 	if err != nil || requestingUser == nil {
+// 		log.Printf("❌ Ошибка получения пользователя: %v", err)
+// 		http.Error(w, "Ошибка аутентификации", http.StatusUnauthorized)
+// 		return
+// 	}
 	
-	// Получаем информацию о чеклисте
-	checklist, err := h.userService.GetChecklistByID(requestData.ChecklistID)
-	if err != nil || checklist == nil {
-		log.Printf("❌ Ошибка получения чеклиста: %v", err)
-	http.Error(w, "Чеклист не найден", http.StatusNotFound)
-	return
-	}
+// 	// Получаем информацию о чеклисте
+// 	checklist, err := h.userService.GetChecklistByID(requestData.ChecklistID)
+// 	if err != nil || checklist == nil {
+// 		log.Printf("❌ Ошибка получения чеклиста: %v", err)
+// 	http.Error(w, "Чеклист не найден", http.StatusNotFound)
+// 	return
+// 	}
 	
-	// Проверяем, что чеклист принадлежит пользователю
-	// Для этого получаем чеклисты пользователя на дату чеклиста
-	userChecklists, err := h.userService.GetWorkerChecklists(requestingUser.ID, checklist.Date)
-	if err != nil {
-	log.Printf("❌ Ошибка получения чеклистов пользователя: %v", err)
-	http.Error(w, "Ошибка сервера", http.StatusInternalServerError)
-		return
-	}
+// 	// Проверяем, что чеклист принадлежит пользователю
+// 	// Для этого получаем чеклисты пользователя на дату чеклиста
+// 	userChecklists, err := h.userService.GetWorkerChecklists(requestingUser.ID, checklist.Date)
+// 	if err != nil {
+// 	log.Printf("❌ Ошибка получения чеклистов пользователя: %v", err)
+// 	http.Error(w, "Ошибка сервера", http.StatusInternalServerError)
+// 		return
+// 	}
 	
-	// Проверяем, есть ли чеклист в списке чеклистов пользователя
-	found := false
-	for _, userChecklist := range userChecklists {
-		if userChecklist.ID == requestData.ChecklistID {
-			found = true
-			break
-		}
-	}
+// 	// Проверяем, есть ли чеклист в списке чеклистов пользователя
+// 	found := false
+// 	for _, userChecklist := range userChecklists {
+// 		if userChecklist.ID == requestData.ChecklistID {
+// 			found = true
+// 			break
+// 		}
+// 	}
 	
-	if !found {
-		log.Printf("❌ Пользователь %d пытается загрузить фото для чеклиста %d, который ему не принадлежит", requestData.WorkerID, requestData.ChecklistID)
-	http.Error(w, "Недостаточно прав", http.StatusForbidden)
-		return
-	}
+// 	if !found {
+// 		log.Printf("❌ Пользователь %d пытается загрузить фото для чеклиста %d, который ему не принадлежит", requestData.WorkerID, requestData.ChecklistID)
+// 	http.Error(w, "Недостаточно прав", http.StatusForbidden)
+// 		return
+// 	}
 	
-	// Разделяем строку с фото по запятой, если их несколько
-	photoDataList := strings.Split(requestData.PhotoData, ",")
+// 	// Разделяем строку с фото по запятой, если их несколько
+// 	photoDataList := strings.Split(requestData.PhotoData, ",")
 	
-	// Создаем директорию для изображений чеклистов, если её нет
-	imagesDir := "./public/list"
-	if _, err := os.Stat(imagesDir); os.IsNotExist(err) {
-		err := os.MkdirAll(imagesDir, 0755)
-	if err != nil {
-			log.Printf("❌ Ошибка создания директории: %v", err)
-			http.Error(w, "Ошибка сервера", http.StatusInternalServerError)
-			return
-		}
-	}
+// 	// Создаем директорию для изображений чеклистов, если её нет
+// 	imagesDir := "./public/list"
+// 	if _, err := os.Stat(imagesDir); os.IsNotExist(err) {
+// 		err := os.MkdirAll(imagesDir, 0755)
+// 	if err != nil {
+// 			log.Printf("❌ Ошибка создания директории: %v", err)
+// 			http.Error(w, "Ошибка сервера", http.StatusInternalServerError)
+// 			return
+// 		}
+// 	}
 	
-	// Обрабатываем каждое фото
-	var photoPaths []string
-	for i, photoData := range photoDataList {
-		// Убираем лишние пробелы
-		photoData = strings.TrimSpace(photoData)
-		if photoData == "" {
-			continue
-		}
+// 	// Обрабатываем каждое фото
+// 	var photoPaths []string
+// 	for i, photoData := range photoDataList {
+// 		// Убираем лишние пробелы
+// 		photoData = strings.TrimSpace(photoData)
+// 		if photoData == "" {
+// 			continue
+// 		}
 		
-		// Декодируем Base64 строку в бинарные данные
-	photoBytes, err := base64.StdEncoding.DecodeString(photoData)
-		if err != nil {
-			log.Printf("❌ Ошибка декодирования Base64: %v", err)
-			http.Error(w, "Некорректные данные фото", http.StatusBadRequest)
-			return
-		}
+// 		// Декодируем Base64 строку в бинарные данные
+// 	photoBytes, err := base64.StdEncoding.DecodeString(photoData)
+// 		if err != nil {
+// 			log.Printf("❌ Ошибка декодирования Base64: %v", err)
+// 			http.Error(w, "Некорректные данные фото", http.StatusBadRequest)
+// 			return
+// 		}
 		
-		// Генерируем уникальное имя файла
-		fileExt := ".jpg" // Предполагаем, что фото в формате JPEG
-		newFileName := fmt.Sprintf("checklist_%d_%d_%d%s", requestData.ChecklistID, time.Now().Unix(), i, fileExt)
-		filePath := filepath.Join(imagesDir, newFileName)
+// 		// Генерируем уникальное имя файла
+// 		fileExt := ".jpg" // Предполагаем, что фото в формате JPEG
+// 		newFileName := fmt.Sprintf("checklist_%d_%d_%d%s", requestData.ChecklistID, time.Now().Unix(), i, fileExt)
+// 		filePath := filepath.Join(imagesDir, newFileName)
 		
-		// Создаем файл на сервере
-		dst, err := os.Create(filePath)
-		if err != nil {
-			log.Printf("❌ Ошибка создания файла: %v", err)
-			http.Error(w, "Ошибка сервера", http.StatusInternalServerError)
-			return
-		}
-		defer dst.Close()
+// 		// Создаем файл на сервере
+// 		dst, err := os.Create(filePath)
+// 		if err != nil {
+// 			log.Printf("❌ Ошибка создания файла: %v", err)
+// 			http.Error(w, "Ошибка сервера", http.StatusInternalServerError)
+// 			return
+// 		}
+// 		defer dst.Close()
 		
-		// Записываем бинарные данные фото в файл
-		if _, err := dst.Write(photoBytes); err != nil {
-		log.Printf("❌ Ошибка записи файла: %v", err)
-			http.Error(w, "Ошибка сервера", http.StatusInternalServerError)
-			return
-		}
+// 		// Записываем бинарные данные фото в файл
+// 		if _, err := dst.Write(photoBytes); err != nil {
+// 		log.Printf("❌ Ошибка записи файла: %v", err)
+// 			http.Error(w, "Ошибка сервера", http.StatusInternalServerError)
+// 			return
+// 		}
 		
-		// Формируем путь для доступа через веб
-		webPath := fmt.Sprintf("/list/%s", newFileName)
-		photoPaths = append(photoPaths, webPath)
-	}
+// 		// Формируем путь для доступа через веб
+// 		webPath := fmt.Sprintf("/list/%s", newFileName)
+// 		photoPaths = append(photoPaths, webPath)
+// 	}
 	
-	// Объединяем все пути к фото в одну строку с запятой как разделителем
-	finalPhotoPath := strings.Join(photoPaths, ",")
+// 	// Объединяем все пути к фото в одну строку с запятой как разделителем
+// 	finalPhotoPath := strings.Join(photoPaths, ",")
 	
-	// Обновляем чеклист с путем к фото и устанавливаем статус выполнения
-	err = h.userService.UpdateChecklist(requestData.ChecklistID, finalPhotoPath)
-	if err != nil {
-		log.Printf("❌ Ошибка обновления чеклиста: %v", err)
-		http.Error(w, "Ошибка сервера", http.StatusInternalServerError)
-		return
-	}
+// 	// Обновляем чеклист с путем к фото и устанавливаем статус выполнения
+// 	err = h.userService.UpdateChecklist(requestData.ChecklistID, finalPhotoPath)
+// 	if err != nil {
+// 		log.Printf("❌ Ошибка обновления чеклиста: %v", err)
+// 		http.Error(w, "Ошибка сервера", http.StatusInternalServerError)
+// 		return
+// 	}
 	
-	response := map[string]interface{}{
-		"status": "success",
-		"message": fmt.Sprintf("Фото успешно загружены! Всего: %d", len(photoPaths)),
-		"photo_path": finalPhotoPath,
-	}
+// 	response := map[string]interface{}{
+// 		"status": "success",
+// 		"message": fmt.Sprintf("Фото успешно загружены! Всего: %d", len(photoPaths)),
+// 		"photo_path": finalPhotoPath,
+// 	}
 	
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(response)
-	log.Printf("✅ Фото успешно загружены для чеклиста ID=%d: %s", requestData.ChecklistID, finalPhotoPath)
-}
+// 	w.Header().Set("Content-Type", "application/json")
+// 	json.NewEncoder(w).Encode(response)
+// 	log.Printf("✅ Фото успешно загружены для чеклиста ID=%d: %s", requestData.ChecklistID, finalPhotoPath)
+// }
 
+// HandleAddChecklistPhoto - добавление нового фото к существующим фото чеклиста
+func (h *HTTPHandlers) HandleAddChecklistPhoto(w http.ResponseWriter, r *http.Request) {
+    // Ограничиваем размер загружаемого файла до 10MB
+    r.Body = http.MaxBytesReader(w, r.Body, 10<<20)
+    
+    // Парсим JSON из тела запроса
+    var requestData struct {
+        ChecklistID int64  `json:"checklist_id"`
+        PhotoData   string `json:"photo_data"` // Base64 строка фото
+        WorkerID    int64  `json:"worker_id"`
+        TelegramID  int64  `json:"telegram_id"`
+    }
+    
+    decoder := json.NewDecoder(r.Body)
+    err := decoder.Decode(&requestData)
+    if err != nil {
+        log.Printf("❌ Ошибка парсинга JSON: %v", err)
+        http.Error(w, "Ошибка парсинга JSON", http.StatusBadRequest)
+        return
+    }
+    
+    // Проверяем, что чеклист принадлежит пользователю - ВСЁ В ОДНОМ ЗАПРОСЕ!
+    checklist, err := h.userService.GetWorkerChecklistByID(requestData.WorkerID, requestData.ChecklistID)
+    if err != nil || checklist == nil {
+        log.Printf("❌ Чеклист ID=%d не принадлежит пользователю ID=%d или не существует: %v", 
+            requestData.ChecklistID, requestData.WorkerID, err)
+        http.Error(w, "Чеклист не найден или недостаточно прав", http.StatusForbidden)
+        return
+    }
+    
+    // Проверяем, что есть данные фото
+    if requestData.PhotoData == "" {
+        log.Printf("❌ Не предоставлены данные фото")
+        http.Error(w, "Нет данных фото", http.StatusBadRequest)
+        return
+    }
+    
+    // Разделяем строку с фото по запятой, если их несколько
+    photoDataList := strings.Split(requestData.PhotoData, ",")
+    
+    // Создаем директорию для изображений чеклистов, если её нет
+    imagesDir := "./public/list"
+    if _, err := os.Stat(imagesDir); os.IsNotExist(err) {
+        err := os.MkdirAll(imagesDir, 0755)
+        if err != nil {
+            log.Printf("❌ Ошибка создания директории: %v", err)
+            http.Error(w, "Ошибка сервера", http.StatusInternalServerError)
+            return
+        }
+    }
+    
+    // Обрабатываем каждое фото
+    var newPhotoPaths []string
+    for i, photoData := range photoDataList {
+        // Убираем лишние пробелы
+        photoData = strings.TrimSpace(photoData)
+        if photoData == "" {
+            continue
+        }
+        
+        // Декодируем Base64 строку в бинарные данные
+        photoBytes, err := base64.StdEncoding.DecodeString(photoData)
+        if err != nil {
+            log.Printf("❌ Ошибка декодирования Base64: %v", err)
+            http.Error(w, "Некорректные данные фото", http.StatusBadRequest)
+            return
+        }
+        
+        // Генерируем уникальное имя файла
+        fileExt := ".jpg" // Предполагаем, что фото в формате JPEG
+        newFileName := fmt.Sprintf("checklist_add_%d_%d_%d%s", requestData.ChecklistID, time.Now().Unix(), i, fileExt)
+        filePath := filepath.Join(imagesDir, newFileName)
+        
+        // Создаем файл на сервере
+        dst, err := os.Create(filePath)
+        if err != nil {
+            log.Printf("❌ Ошибка создания файла: %v", err)
+            http.Error(w, "Ошибка сервера", http.StatusInternalServerError)
+            return
+        }
+        defer dst.Close()
+        
+        // Записываем бинарные данные фото в файл
+        if _, err := dst.Write(photoBytes); err != nil {
+            log.Printf("❌ Ошибка записи файла: %v", err)
+            http.Error(w, "Ошибка сервера", http.StatusInternalServerError)
+            return
+        }
+        
+        // Формируем путь для доступа через веб
+        webPath := fmt.Sprintf("/list/%s", newFileName)
+        newPhotoPaths = append(newPhotoPaths, webPath)
+    }
+    
+    // Объединяем все новые пути к фото в одну строку
+    newPhotosPath := strings.Join(newPhotoPaths, ",")
+
+    // Определяем новые пути к фото
+    var finalPhotoPath string
+    if checklist.Photo == "" {
+        // Если фото еще нет, используем только новое фото
+        finalPhotoPath = newPhotosPath
+    } else {
+        // Если уже есть фото, добавляем новое через запятую
+        finalPhotoPath = checklist.Photo + "," + newPhotosPath
+    }
+    // Обновляем фото в объекте для публикации
+    checklist.Photo = finalPhotoPath
+    // Добавляем новые фото к существующим
+    err = h.userService.AddChecklistPhoto(checklist)
+    if err != nil {
+        log.Printf("❌ Ошибка добавления фото к чеклисту: %v", err)
+        http.Error(w, "Ошибка сервера", http.StatusInternalServerError)
+        return
+    }
+    
+    
+    response := map[string]interface{}{
+        "status": "success",
+        "message": fmt.Sprintf("Фото успешно добавлены! Всего новых фото: %d", len(newPhotoPaths)),
+        "new_photo_path": newPhotosPath,
+        "total_photos": len(strings.Split(checklist.Photo, ",")),
+        "checklist": checklist,
+    }
+    
+    w.Header().Set("Content-Type", "application/json")
+    json.NewEncoder(w).Encode(response)
+    log.Printf("✅ Фото успешно добавлены к чеклисту ID=%d: %s", requestData.ChecklistID, newPhotosPath)
+}
 
 
 // HandleCalculateSalary - расчет заработной платы за месяц
@@ -1731,35 +2145,35 @@ if len(schedule.Date) > 10 {
     
     // Сравниваем только даты (без времени)
     if scheduleTime.Year() < currentTime.Year() ||
-       (scheduleTime.Year() == currentTime.Year() && scheduleTime.YearDay() < currentTime.YearDay()) {
-        log.Printf("❌ Невозможно удалить расписание с датой %s, которая ранее текущей даты %s",
-            schedule.Date, currentDateOnly)
-        http.Error(w, "Невозможно удалить расписание с датой, которая ранее текущей", http.StatusBadRequest)
-        return
+        (scheduleTime.Year() == currentTime.Year() && scheduleTime.YearDay() < currentTime.YearDay()) {
+            log.Printf("❌ Невозможно удалить расписание с датой %s, которая ранее текущей даты %s",
+                schedule.Date, currentDateOnly)
+            http.Error(w, "Невозможно удалить расписание с датой, которая ранее текущей", http.StatusBadRequest)
+            return
+        }
+    } else { // Если дата в формате "2025-11-24"
+        scheduleTime, err := time.Parse("2006-01-02", schedule.Date)
+        if err != nil {
+            log.Printf("❌ Ошибка парсинга даты расписания: %v", err)
+            http.Error(w, "Неверный формат даты расписания", http.StatusBadRequest)
+            return
+        }
+        
+        currentTime, err := time.Parse("2006-01-02", currentDate)
+        if err != nil {
+            log.Printf("❌ Ошибка парсинга текущей даты: %v", err)
+            http.Error(w, "Внутренняя ошибка сервера", http.StatusInternalServerError)
+            return
+        }
+        
+        // Сравниваем time.Time
+        if scheduleTime.Before(currentTime) {
+            log.Printf("❌ Невозможно удалить расписание с датой %s, которая ранее текущей даты %s",
+                schedule.Date, currentDate)
+            http.Error(w, "Невозможно удалить расписание с датой, которая ранее текущей", http.StatusBadRequest)
+            return
+        }
     }
-} else { // Если дата в формате "2025-11-24"
-    scheduleTime, err := time.Parse("2006-01-02", schedule.Date)
-    if err != nil {
-        log.Printf("❌ Ошибка парсинга даты расписания: %v", err)
-        http.Error(w, "Неверный формат даты расписания", http.StatusBadRequest)
-        return
-    }
-    
-    currentTime, err := time.Parse("2006-01-02", currentDate)
-    if err != nil {
-        log.Printf("❌ Ошибка парсинга текущей даты: %v", err)
-        http.Error(w, "Внутренняя ошибка сервера", http.StatusInternalServerError)
-        return
-    }
-    
-    // Сравниваем time.Time
-    if scheduleTime.Before(currentTime) {
-        log.Printf("❌ Невозможно удалить расписание с датой %s, которая ранее текущей даты %s",
-            schedule.Date, currentDate)
-        http.Error(w, "Невозможно удалить расписание с датой, которая ранее текущей", http.StatusBadRequest)
-        return
-    }
-}
 
     // Удаляем расписание
     err = h.userService.DeleteSchedule(requestData.ScheduleID, schedule.WorkerID, schedule.Date)
@@ -1779,3 +2193,560 @@ if len(schedule.Date) > 10 {
     json.NewEncoder(w).Encode(response)
     log.Printf("✅ Расписание успешно удалено для ID=%d", requestData.ScheduleID)
 }
+
+
+
+//__________________________________________________________
+
+
+// HandleGetAllFineTemplates - получение всех шаблонов штрафов
+func (h *HTTPHandlers) HandleGetAllFineTemplates(w http.ResponseWriter, r *http.Request) {
+    var requestData struct {
+        AdminID    int64 `json:"admin_id"`
+        TelegramID int64 `json:"telegram_id"`
+    }
+
+    decoder := json.NewDecoder(r.Body)
+    err := decoder.Decode(&requestData)
+    if err != nil {
+        log.Printf("❌ Ошибка парсинга JSON: %v", err)
+        http.Error(w, "Ошибка парсинга JSON", http.StatusBadRequest)
+        return
+    }
+
+    // Проверяем, что пользователь является админом
+    adminUser, err := h.userService.GetUser(requestData.TelegramID, requestData.AdminID)
+    if err != nil || adminUser == nil {
+        log.Printf("❌ Ошибка получения пользователя: %v", err)
+        http.Error(w, "Ошибка аутентификации", http.StatusUnauthorized)
+        return
+    }
+    if adminUser.IsAdmin == false {
+        log.Printf("❌ Пользователь не является администратором")
+        http.Error(w, "Недостаточно прав", http.StatusForbidden)
+        return
+    }
+
+    templates, err := h.userService.GetAllFineTemplates()
+    if err != nil {
+        log.Printf("❌ Ошибка получения шаблонов штрафов: %v", err)
+        http.Error(w, "Ошибка получения шаблонов штрафов", http.StatusInternalServerError)
+        return
+    }
+
+    response := map[string]interface{}{
+        "status":   "success",
+        "templates": templates,
+    }
+
+    w.Header().Set("Content-Type", "application/json")
+    json.NewEncoder(w).Encode(response)
+}
+
+// HandleGetAllBonusTemplates - получение всех шаблонов премий
+func (h *HTTPHandlers) HandleGetAllBonusTemplates(w http.ResponseWriter, r *http.Request) {
+    var requestData struct {
+        AdminID    int64 `json:"admin_id"`
+        TelegramID int64 `json:"telegram_id"`
+    }
+
+    decoder := json.NewDecoder(r.Body)
+    err := decoder.Decode(&requestData)
+    if err != nil {
+        log.Printf("❌ Ошибка парсинга JSON: %v", err)
+        http.Error(w, "Ошибка парсинга JSON", http.StatusBadRequest)
+        return
+    }
+
+    // Проверяем, что пользователь является админом
+    adminUser, err := h.userService.GetUser(requestData.TelegramID, requestData.AdminID)
+    if err != nil || adminUser == nil {
+        log.Printf("❌ Ошибка получения пользователя: %v", err)
+        http.Error(w, "Ошибка аутентификации", http.StatusUnauthorized)
+        return
+    }
+    if adminUser.IsAdmin == false {
+        log.Printf("❌ Пользователь не является администратором")
+        http.Error(w, "Недостаточно прав", http.StatusForbidden)
+        return
+    }
+
+    templates, err := h.userService.GetAllBonusTemplates()
+    if err != nil {
+        log.Printf("❌ Ошибка получения шаблонов премий: %v", err)
+        http.Error(w, "Ошибка получения шаблонов премий", http.StatusInternalServerError)
+        return
+    }
+
+    response := map[string]interface{}{
+        "status":   "success",
+        "templates": templates,
+    }
+
+    w.Header().Set("Content-Type", "application/json")
+    json.NewEncoder(w).Encode(response)
+}
+
+// HandleGetUserBonuses - получение премий пользователя за месяц
+func (h *HTTPHandlers) HandleGetUserBonuses(w http.ResponseWriter, r *http.Request) {
+    var requestData struct {
+        UserID     int64  `json:"user_id"`
+        Month      string `json:"month"` // формат "YYYY-MM"
+        AdminID    int64  `json:"admin_id"`
+        TelegramID int64  `json:"telegram_id"`
+    }
+
+    decoder := json.NewDecoder(r.Body)
+    err := decoder.Decode(&requestData)
+    if err != nil {
+        log.Printf("❌ Ошибка парсинга JSON: %v", err)
+        http.Error(w, "Ошибка парсинга JSON", http.StatusBadRequest)
+        return
+    }
+
+    // Проверяем права доступа: пользователь должен быть админом ИЛИ запрашивать свои собственные премии
+    requestingUser, err := h.userService.GetUser(requestData.TelegramID, requestData.AdminID)
+    if err != nil || requestingUser == nil {
+        log.Printf("❌ Ошибка получения пользователя: %v", err)
+        http.Error(w, "Ошибка аутентификации", http.StatusUnauthorized)
+        return
+    }
+
+    // Разрешаем доступ если:
+    // 1. Пользователь является администратором, ИЛИ
+    // 2. Пользователь запрашивает свои собственные премии (UserID == AdminID)
+    if !requestingUser.IsAdmin && requestData.UserID != requestData.AdminID {
+        log.Printf("❌ Недостаточно прав: пользователь %d не является админом и запрашивает премии другого работника %d", requestData.AdminID, requestData.UserID)
+        http.Error(w, "Недостаточно прав", http.StatusForbidden)
+        return
+    }
+
+    bonuses, err := h.userService.GetUserBonuses(requestData.UserID, requestData.Month)
+    if err != nil {
+        log.Printf("❌ Ошибка получения премий: %v", err)
+        http.Error(w, "Ошибка получения премий", http.StatusInternalServerError)
+        return
+    }
+
+    response := map[string]interface{}{
+        "status":  "success",
+        "bonuses": bonuses,
+    }
+
+    w.Header().Set("Content-Type", "application/json")
+    json.NewEncoder(w).Encode(response)
+}
+
+// HandleGetUserFines - получение штрафов пользователя за месяц
+func (h *HTTPHandlers) HandleGetUserFines(w http.ResponseWriter, r *http.Request) {
+    var requestData struct {
+        UserID     int64  `json:"user_id"`
+        Month      string `json:"month"` // формат "YYYY-MM"
+        AdminID    int64  `json:"admin_id"`
+        TelegramID int64  `json:"telegram_id"`
+    }
+
+    decoder := json.NewDecoder(r.Body)
+    err := decoder.Decode(&requestData)
+    if err != nil {
+        log.Printf("❌ Ошибка парсинга JSON: %v", err)
+        http.Error(w, "Ошибка парсинга JSON", http.StatusBadRequest)
+        return
+    }
+
+    // Проверяем права доступа: пользователь должен быть админом ИЛИ запрашивать свои собственные штрафы
+    requestingUser, err := h.userService.GetUser(requestData.TelegramID, requestData.AdminID)
+    if err != nil || requestingUser == nil {
+        log.Printf("❌ Ошибка получения пользователя: %v", err)
+        http.Error(w, "Ошибка аутентификации", http.StatusUnauthorized)
+        return
+    }
+
+    // Разрешаем доступ если:
+    // 1. Пользователь является администратором, ИЛИ
+    // 2. Пользователь запрашивает свои собственные штрафы (UserID == AdminID)
+    if !requestingUser.IsAdmin && requestData.UserID != requestData.AdminID {
+        log.Printf("❌ Недостаточно прав: пользователь %d не является админом и запрашивает штрафы другого работника %d", requestData.AdminID, requestData.UserID)
+        http.Error(w, "Недостаточно прав", http.StatusForbidden)
+        return
+    }
+
+    fines, err := h.userService.GetUserFines(requestData.UserID, requestData.Month)
+    if err != nil {
+        log.Printf("❌ Ошибка получения штрафов: %v", err)
+        http.Error(w, "Ошибка получения штрафов", http.StatusInternalServerError)
+        return
+    }
+
+    response := map[string]interface{}{
+        "status": "success",
+        "fines":  fines,
+    }
+
+    w.Header().Set("Content-Type", "application/json")
+    json.NewEncoder(w).Encode(response)
+}
+// HandleCreateFineTemplate - создание шаблона штрафа
+func (h *HTTPHandlers) HandleCreateFineTemplate(w http.ResponseWriter, r *http.Request) {
+    var requestData struct {
+        Template *models.FineTemplate `json:"template"`
+        AdminID  int64                `json:"admin_id"`
+        TelegramID int64             `json:"telegram_id"`
+    }
+
+    decoder := json.NewDecoder(r.Body)
+    err := decoder.Decode(&requestData)
+    if err != nil {
+        log.Printf("❌ Ошибка парсинга JSON: %v", err)
+        http.Error(w, "Ошибка парсинга JSON", http.StatusBadRequest)
+        return
+    }
+
+    // Проверяем, что пользователь является админом
+    adminUser, err := h.userService.GetUser(requestData.TelegramID, requestData.AdminID)
+    if err != nil || adminUser == nil {
+        log.Printf("❌ Ошибка получения пользователя: %v", err)
+        http.Error(w, "Ошибка аутентификации", http.StatusUnauthorized)
+        return
+    }
+    if adminUser.IsAdmin == false {
+        log.Printf("❌ Пользователь не является администратором")
+        http.Error(w, "Недостаточно прав", http.StatusForbidden)
+        return
+    }
+
+    err = h.userService.CreateFineTemplate(requestData.Template)
+    if err != nil {
+        log.Printf("❌ Ошибка создания шаблона штрафа: %v", err)
+        http.Error(w, "Ошибка создания шаблона штрафа", http.StatusInternalServerError)
+        return
+    }
+
+    response := map[string]interface{}{
+        "status":  "success",
+        "message": "Шаблон штрафа успешно создан",
+        "template_id": requestData.Template.ID,
+    }
+
+    w.Header().Set("Content-Type", "application/json")
+    json.NewEncoder(w).Encode(response)
+}
+
+// HandleCreateBonusTemplate - создание шаблона премии
+func (h *HTTPHandlers) HandleCreateBonusTemplate(w http.ResponseWriter, r *http.Request) {
+    var requestData struct {
+        Template *models.BonusTemplate `json:"template"`
+        AdminID  int64                 `json:"admin_id"`
+        TelegramID int64              `json:"telegram_id"`
+    }
+
+    decoder := json.NewDecoder(r.Body)
+    err := decoder.Decode(&requestData)
+    if err != nil {
+        log.Printf("❌ Ошибка парсинга JSON: %v", err)
+        http.Error(w, "Ошибка парсинга JSON", http.StatusBadRequest)
+        return
+    }
+
+    // Проверяем, что пользователь является админом
+    adminUser, err := h.userService.GetUser(requestData.TelegramID, requestData.AdminID)
+    if err != nil || adminUser == nil {
+        log.Printf("❌ Ошибка получения пользователя: %v", err)
+        http.Error(w, "Ошибка аутентификации", http.StatusUnauthorized)
+        return
+    }
+    if adminUser.IsAdmin == false {
+        log.Printf("❌ Пользователь не является администратором")
+        http.Error(w, "Недостаточно прав", http.StatusForbidden)
+        return
+    }
+
+    err = h.userService.CreateBonusTemplate(requestData.Template)
+    if err != nil {
+        log.Printf("❌ Ошибка создания шаблона премии: %v", err)
+        http.Error(w, "Ошибка создания шаблона премии", http.StatusInternalServerError)
+        return
+    }
+
+    response := map[string]interface{}{
+        "status":  "success",
+        "message": "Шаблон премии успешно создан",
+        "template_id": requestData.Template.ID,
+    }
+
+    w.Header().Set("Content-Type", "application/json")
+    json.NewEncoder(w).Encode(response)
+}
+
+// HandleCreateBonus - создание премии
+func (h *HTTPHandlers) HandleCreateBonus(w http.ResponseWriter, r *http.Request) {
+    var requestData struct {
+        Bonus      *models.Bonus `json:"bonus"`
+        AdminID    int64         `json:"admin_id"`
+        TelegramID int64         `json:"telegram_id"`
+    }
+
+    decoder := json.NewDecoder(r.Body)
+    err := decoder.Decode(&requestData)
+    if err != nil {
+        log.Printf("❌ Ошибка парсинга JSON: %v", err)
+        http.Error(w, "Ошибка парсинга JSON", http.StatusBadRequest)
+        return
+    }
+
+    // Проверяем, что пользователь является админом
+    adminUser, err := h.userService.GetUser(requestData.TelegramID, requestData.AdminID)
+    if err != nil || adminUser == nil {
+        log.Printf("❌ Ошибка получения пользователя: %v", err)
+        http.Error(w, "Ошибка аутентификации", http.StatusUnauthorized)
+        return
+    }
+    if adminUser.IsAdmin == false {
+        log.Printf("❌ Пользователь не является администратором")
+        http.Error(w, "Недостаточно прав", http.StatusForbidden)
+        return
+    }
+
+    err = h.userService.CreateBonus(requestData.Bonus)
+    if err != nil {
+        log.Printf("❌ Ошибка создания премии: %v", err)
+        http.Error(w, "Ошибка создания премии", http.StatusInternalServerError)
+        return
+    }
+
+    response := map[string]interface{}{
+        "status":  "success",
+        "message": "Премия успешно создана",
+        "bonus_id": requestData.Bonus.ID,
+    }
+
+    w.Header().Set("Content-Type", "application/json")
+    json.NewEncoder(w).Encode(response)
+}
+
+// HandleCreateFine - создание штрафа
+func (h *HTTPHandlers) HandleCreateFine(w http.ResponseWriter, r *http.Request) {
+    var requestData struct {
+        Fine       *models.Fine `json:"fine"`
+        AdminID    int64        `json:"admin_id"`
+        TelegramID int64        `json:"telegram_id"`
+    }
+
+    decoder := json.NewDecoder(r.Body)
+    err := decoder.Decode(&requestData)
+    if err != nil {
+        log.Printf("❌ Ошибка парсинга JSON: %v", err)
+        http.Error(w, "Ошибка парсинга JSON", http.StatusBadRequest)
+        return
+    }
+
+    // Проверяем, что пользователь является админом
+    adminUser, err := h.userService.GetUser(requestData.TelegramID, requestData.AdminID)
+    if err != nil || adminUser == nil {
+        log.Printf("❌ Ошибка получения пользователя: %v", err)
+        http.Error(w, "Ошибка аутентификации", http.StatusUnauthorized)
+        return
+    }
+    if adminUser.IsAdmin == false {
+        log.Printf("❌ Пользователь не является администратором")
+        http.Error(w, "Недостаточно прав", http.StatusForbidden)
+        return
+    }
+
+    err = h.userService.CreateFine(requestData.Fine)
+    if err != nil {
+        log.Printf("❌ Ошибка создания штрафа: %v", err)
+        http.Error(w, "Ошибка создания штрафа", http.StatusInternalServerError)
+        return
+    }
+
+    response := map[string]interface{}{
+        "status":  "success",
+        "message": "Штраф успешно создан",
+        "fine":    requestData.Fine,
+    }
+
+    w.Header().Set("Content-Type", "application/json")
+    json.NewEncoder(w).Encode(response)
+}
+
+// HandleDeleteFineTemplate - удаление шаблона штрафа
+func (h *HTTPHandlers) HandleDeleteFineTemplate(w http.ResponseWriter, r *http.Request) {
+    var requestData struct {
+        TemplateID int64 `json:"template_id"`
+        AdminID    int64 `json:"admin_id"`
+        TelegramID int64 `json:"telegram_id"`
+    }
+
+    decoder := json.NewDecoder(r.Body)
+    err := decoder.Decode(&requestData)
+    if err != nil {
+        log.Printf("❌ Ошибка парсинга JSON: %v", err)
+        http.Error(w, "Ошибка парсинга JSON", http.StatusBadRequest)
+        return
+    }
+
+    // Проверяем, что пользователь является админом
+    adminUser, err := h.userService.GetUser(requestData.TelegramID, requestData.AdminID)
+    if err != nil || adminUser == nil {
+        log.Printf("❌ Ошибка получения пользователя: %v", err)
+        http.Error(w, "Ошибка аутентификации", http.StatusUnauthorized)
+        return
+    }
+    if adminUser.IsAdmin == false {
+        log.Printf("❌ Пользователь не является администратором")
+        http.Error(w, "Недостаточно прав", http.StatusForbidden)
+        return
+    }
+
+    err = h.userService.DeleteFineTemplate(requestData.TemplateID)
+    if err != nil {
+        log.Printf("❌ Ошибка удаления шаблона штрафа: %v", err)
+        http.Error(w, "Ошибка удаления шаблона штрафа", http.StatusInternalServerError)
+        return
+    }
+
+    response := map[string]interface{}{
+        "status":  "success",
+        "message": "Шаблон штрафа успешно удален",
+    }
+
+    w.Header().Set("Content-Type", "application/json")
+    json.NewEncoder(w).Encode(response)
+}
+
+// HandleDeleteBonusTemplate - удаление шаблона премии
+func (h *HTTPHandlers) HandleDeleteBonusTemplate(w http.ResponseWriter, r *http.Request) {
+    var requestData struct {
+        TemplateID int64 `json:"template_id"`
+        AdminID    int64 `json:"admin_id"`
+        TelegramID int64 `json:"telegram_id"`
+    }
+
+    decoder := json.NewDecoder(r.Body)
+    err := decoder.Decode(&requestData)
+    if err != nil {
+        log.Printf("❌ Ошибка парсинга JSON: %v", err)
+        http.Error(w, "Ошибка парсинга JSON", http.StatusBadRequest)
+        return
+    }
+
+    // Проверяем, что пользователь является админом
+    adminUser, err := h.userService.GetUser(requestData.TelegramID, requestData.AdminID)
+    if err != nil || adminUser == nil {
+        log.Printf("❌ Ошибка получения пользователя: %v", err)
+        http.Error(w, "Ошибка аутентификации", http.StatusUnauthorized)
+        return
+    }
+    if adminUser.IsAdmin == false {
+        log.Printf("❌ Пользователь не является администратором")
+        http.Error(w, "Недостаточно прав", http.StatusForbidden)
+        return
+    }
+
+    err = h.userService.DeleteBonusTemplate(requestData.TemplateID)
+    if err != nil {
+        log.Printf("❌ Ошибка удаления шаблона премии: %v", err)
+        http.Error(w, "Ошибка удаления шаблона премии", http.StatusInternalServerError)
+        return
+    }
+
+    response := map[string]interface{}{
+        "status":  "success",
+        "message": "Шаблон премии успешно удален",
+    }
+
+    w.Header().Set("Content-Type", "application/json")
+    json.NewEncoder(w).Encode(response)
+}
+
+// HandleDeleteBonus - удаление премии
+func (h *HTTPHandlers) HandleDeleteBonus(w http.ResponseWriter, r *http.Request) {
+    var requestData struct {
+        BonusID    int64 `json:"bonus_id"`
+        AdminID    int64 `json:"admin_id"`
+        TelegramID int64 `json:"telegram_id"`
+    }
+
+    decoder := json.NewDecoder(r.Body)
+    err := decoder.Decode(&requestData)
+    if err != nil {
+        log.Printf("❌ Ошибка парсинга JSON: %v", err)
+        http.Error(w, "Ошибка парсинга JSON", http.StatusBadRequest)
+        return
+    }
+
+    // Проверяем, что пользователь является админом
+    adminUser, err := h.userService.GetUser(requestData.TelegramID, requestData.AdminID)
+    if err != nil || adminUser == nil {
+        log.Printf("❌ Ошибка получения пользователя: %v", err)
+        http.Error(w, "Ошибка аутентификации", http.StatusUnauthorized)
+        return
+    }
+    if adminUser.IsAdmin == false {
+        log.Printf("❌ Пользователь не является администратором")
+        http.Error(w, "Недостаточно прав", http.StatusForbidden)
+        return
+    }
+
+    err = h.userService.DeleteBonus(requestData.BonusID)
+    if err != nil {
+        log.Printf("❌ Ошибка удаления премии: %v", err)
+        http.Error(w, "Ошибка удаления премии", http.StatusInternalServerError)
+        return
+    }
+
+    response := map[string]interface{}{
+        "status":  "success",
+        "message": "Премия успешно удалена",
+    }
+
+    w.Header().Set("Content-Type", "application/json")
+    json.NewEncoder(w).Encode(response)
+}
+
+// HandleDeleteFine - удаление штрафа
+func (h *HTTPHandlers) HandleDeleteFine(w http.ResponseWriter, r *http.Request) {
+    var requestData struct {
+        FineID     int64 `json:"fine_id"`
+        AdminID    int64 `json:"admin_id"`
+        TelegramID int64 `json:"telegram_id"`
+    }
+
+    decoder := json.NewDecoder(r.Body)
+    err := decoder.Decode(&requestData)
+    if err != nil {
+        log.Printf("❌ Ошибка парсинга JSON: %v", err)
+        http.Error(w, "Ошибка парсинга JSON", http.StatusBadRequest)
+        return
+    }
+
+    // Проверяем, что пользователь является админом
+    adminUser, err := h.userService.GetUser(requestData.TelegramID, requestData.AdminID)
+    if err != nil || adminUser == nil {
+        log.Printf("❌ Ошибка получения пользователя: %v", err)
+        http.Error(w, "Ошибка аутентификации", http.StatusUnauthorized)
+        return
+    }
+    if adminUser.IsAdmin == false {
+        log.Printf("❌ Пользователь не является администратором")
+        http.Error(w, "Недостаточно прав", http.StatusForbidden)
+        return
+    }
+
+    err = h.userService.DeleteFine(requestData.FineID)
+    if err != nil {
+        log.Printf("❌ Ошибка удаления штрафа: %v", err)
+        http.Error(w, "Ошибка удаления штрафа", http.StatusInternalServerError)
+        return
+    }
+
+    response := map[string]interface{}{
+        "status":  "success",
+        "message": "Штраф успешно удален",
+    }
+
+    w.Header().Set("Content-Type", "application/json")
+    json.NewEncoder(w).Encode(response)
+}
+

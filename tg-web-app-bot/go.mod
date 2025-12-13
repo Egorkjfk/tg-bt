@@ -10,4 +10,5 @@ require (
 	golang.org/x/net v0.44.0 // indirect
 	golang.org/x/sync v0.17.0 // indirect
 	gopkg.in/telebot.v4 v4.0.0-beta.5 // indirect
+	h12.io/socks v1.0.3 // indirect
 )

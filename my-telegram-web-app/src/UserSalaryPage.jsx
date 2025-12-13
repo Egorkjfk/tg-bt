@@ -143,7 +143,6 @@ const UserSalaryPage = ({ userData, fullWidth = false }) => {
     // Форматирование времени
     const formatTime = (timeString) => {
         if (!timeString) return '-';
-        // Время приходит как "0000-01-01T09:00:00Z" - берем часть после T и до Z
         const timePart = timeString.split('T')[1];
         return timePart ? timePart.slice(0, 5) : '-';
     };
@@ -344,7 +343,7 @@ const UserSalaryPage = ({ userData, fullWidth = false }) => {
                                 💰 Зарплата (план)
                             </div>
                             <div style={{ fontSize: '18px', fontWeight: 'bold', color: '#3b82f6' }}>
-                                {salaryData.total_planned_salary.toFixed(2)} ₽
+                                {salaryData.total_planned_salary.toFixed(2)} Баллов
                             </div>
                         </div>
                         <div style={{ textAlign: 'center' }}>
@@ -352,13 +351,131 @@ const UserSalaryPage = ({ userData, fullWidth = false }) => {
                                 💵 Зарплата (факт)
                             </div>
                             <div style={{ fontSize: '18px', fontWeight: 'bold', color: '#10b981' }}>
-                                {salaryData.total_actual_salary.toFixed(2)} ₽
-                            </div>
+    {salaryData.total_actual_salary.toFixed(2)} Баллов
+</div>
                         </div>
                     </div>
 
+                    {/* Штрафы */}
+                    {salaryData.fines && salaryData.fines.length > 0 && (
+                        <div
+                            style={{
+                                marginBottom: '20px',
+                                border: '1px solid #fee2e2',
+                                borderRadius: '12px',
+                                overflow: 'hidden',
+                            }}
+                        >
+                            <div
+                                style={{
+                                    padding: '12px 15px',
+                                    backgroundColor: '#fef2f2',
+                                    borderBottom: '1px solid #fee2e2',
+                                    display: 'flex',
+                                    justifyContent: 'space-between',
+                                    alignItems: 'center',
+                                }}
+                            >
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                    <span style={{ color: '#dc2626', fontSize: '16px' }}>⚠️</span>
+                                    <span style={{ fontWeight: '600', color: '#dc2626' }}>
+                                        Штрафы
+                                    </span>
+                                </div>
+                                <div style={{ fontWeight: 'bold', color: '#dc2626' }}>
+                                    -{salaryData.total_fines.toFixed(2)} Баллов
+                                </div>
+                            </div>
+                            <div style={{ backgroundColor: 'white' }}>
+                                {salaryData.fines.map((fine, index) => (
+                                    <div
+                                        key={fine.id}
+                                        style={{
+                                            padding: '12px 15px',
+                                            borderBottom: index < salaryData.fines.length - 1 ? '1px solid #f3f4f6' : 'none',
+                                            display: 'flex',
+                                            justifyContent: 'space-between',
+                                            alignItems: 'center',
+                                        }}
+                                    >
+                                        <div>
+                                            <div style={{ fontWeight: '500', color: '#1f2937' }}>
+                                                {fine.name}
+                                            </div>
+                                            <div style={{ fontSize: '12px', color: '#6b7280', marginTop: '2px' }}>
+                                                {fine.date}
+                                            </div>
+                                        </div>
+                                        <div style={{ fontWeight: '600', color: '#dc2626' }}>
+                                            -{fine.price.toFixed(2)} Баллов
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+                    )}
+
+                    {/* Премии */}
+                    {salaryData.bonuses && salaryData.bonuses.length > 0 && (
+                        <div
+                            style={{
+                                marginBottom: '20px',
+                                border: '1px solid #dcfce7',
+                                borderRadius: '12px',
+                                overflow: 'hidden',
+                            }}
+                        >
+                            <div
+                                style={{
+                                    padding: '12px 15px',
+                                    backgroundColor: '#f0fdf4',
+                                    borderBottom: '1px solid #dcfce7',
+                                    display: 'flex',
+                                    justifyContent: 'space-between',
+                                    alignItems: 'center',
+                                }}
+                            >
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                    <span style={{ color: '#16a34a', fontSize: '16px' }}>🎁</span>
+                                    <span style={{ fontWeight: '600', color: '#16a34a' }}>
+                                        Премии
+                                    </span>
+                                </div>
+                                <div style={{ fontWeight: 'bold', color: '#16a34a' }}>
+                                    +{salaryData.total_bonuses.toFixed(2)} Баллов
+                                </div>
+                            </div>
+                            <div style={{ backgroundColor: 'white' }}>
+                                {salaryData.bonuses.map((bonus, index) => (
+                                    <div
+                                        key={bonus.id}
+                                        style={{
+                                            padding: '12px 15px',
+                                            borderBottom: index < salaryData.bonuses.length - 1 ? '1px solid #f3f4f6' : 'none',
+                                            display: 'flex',
+                                            justifyContent: 'space-between',
+                                            alignItems: 'center',
+                                        }}
+                                    >
+                                        <div>
+                                            <div style={{ fontWeight: '500', color: '#1f2937' }}>
+                                                {bonus.name}
+                                            </div>
+                                            <div style={{ fontSize: '12px', color: '#6b7280', marginTop: '2px' }}>
+                                                {bonus.date}
+                                            </div>
+                                        </div>
+                                        <div style={{ fontWeight: '600', color: '#16a34a' }}>
+                                            +{bonus.price.toFixed(2)} Баллов
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+                    )}
+
                     {/* Таблица смен */}
-                    <div style={{ overflowX: 'auto', overflowY: 'visible' }}>
+                    <div style={{ overflowX: 'auto', overflowY: 'visible', marginBottom: '20px' }}>
                         <table
                             style={{
                                 width: '100%',
@@ -391,7 +508,7 @@ const UserSalaryPage = ({ userData, fullWidth = false }) => {
                             <tbody>
                                 {salaryData.shifts && salaryData.shifts.length > 0 ?
                                     salaryData.shifts
-                                        .sort((a, b) => new Date(b.date) - new Date(a.date)) // Сортировка по дате от новых к старым
+                                        .sort((a, b) => new Date(b.date) - new Date(a.date))
                                         .map((shift, index) => (
                                             <tr
                                                 key={index}
@@ -427,16 +544,16 @@ const UserSalaryPage = ({ userData, fullWidth = false }) => {
                                                     )}
                                                 </td>
                                                 <td style={{ padding: '10px', textAlign: 'center' }}>
-                                                    {shift.hourly_rate} ₽/ч
+                                                    {shift.hourly_rate} Баллов/ч
                                                 </td>
                                                 <td style={{ padding: '10px', textAlign: 'right', fontWeight: '500' }}>
                                                     {shift.actual_salary ? (
                                                         <span style={{ color: '#10b981' }}>
-                                                            {shift.actual_salary.toFixed(2)} ₽
+                                                            {shift.actual_salary.toFixed(2)} Баллов
                                                         </span>
                                                     ) : (
                                                         <span style={{ color: '#3b82f6' }}>
-                                                            {shift.planned_salary.toFixed(2)} ₽
+                                                            {shift.planned_salary.toFixed(2)} Баллов
                                                         </span>
                                                     )}
                                                 </td>
@@ -453,10 +570,58 @@ const UserSalaryPage = ({ userData, fullWidth = false }) => {
                         </table>
                     </div>
 
-                    {/* Итоги */}
+                    {/* Детальный расчет итогов */}
                     <div
                         style={{
-                            marginTop: '20px',
+                            marginBottom: '20px',
+                            padding: '15px',
+                            backgroundColor: '#f8fafc',
+                            borderRadius: '12px',
+                            border: '1px solid #e2e8f0',
+                        }}
+                    >
+                        <div style={{ fontSize: '14px', fontWeight: '600', marginBottom: '12px', color: '#1f2937' }}>
+                            📋 Детали расчета
+                        </div>
+                        
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+                            <span style={{ color: '#4b5563' }}>Зарплата за смены:</span>
+                            <span style={{ fontWeight: '500', color: '#10b981' }}>
+    {salaryData.total_actual_salary.toFixed(2)} Баллов
+</span>
+                        </div>
+
+                        {salaryData.total_bonuses > 0 && (
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+                                <span style={{ color: '#4b5563' }}>Премии:</span>
+                                <span style={{ fontWeight: '500', color: '#16a34a' }}>
+                                    +{salaryData.total_bonuses.toFixed(2)} Баллов
+                                </span>
+                            </div>
+                        )}
+
+                        {salaryData.total_fines > 0 && (
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+                                <span style={{ color: '#4b5563' }}>Штрафы:</span>
+                                <span style={{ fontWeight: '500', color: '#dc2626' }}>
+                                    -{salaryData.total_fines.toFixed(2)} Баллов
+                                </span>
+                            </div>
+                        )}
+
+                        <div style={{ height: '1px', backgroundColor: '#e5e7eb', margin: '10px 0' }}></div>
+
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                            <span style={{ fontWeight: '600', color: '#1f2937' }}>Итого к выплате:</span>
+                            <span style={{ fontWeight: 'bold', fontSize: '18px', color: '#1f2937' }}>
+                                {salaryData.final_salary.toFixed(2)} Баллов
+                            </span>
+                        </div>
+                    </div>
+
+                    {/* Итоговый блок */}
+                    <div
+                        style={{
                             padding: '15px',
                             backgroundColor: '#1f2937',
                             color: 'white',
@@ -465,10 +630,10 @@ const UserSalaryPage = ({ userData, fullWidth = false }) => {
                         }}
                     >
                         <div style={{ fontSize: '16px', fontWeight: 'bold', marginBottom: '5px' }}>
-                            ИТОГО ЗА МЕСЯЦ
+                            🎯 ИТОГО К ВЫПЛАТЕ
                         </div>
-                        <div style={{ fontSize: '20px', fontWeight: 'bold', color: '#10b981' }}>
-                            {salaryData.total_actual_salary.toFixed(2)} ₽
+                        <div style={{ fontSize: '24px', fontWeight: 'bold', color: '#10b981' }}>
+                            {salaryData.final_salary.toFixed(2)} Баллов
                         </div>
                         <div style={{ fontSize: '12px', color: '#9ca3af', marginTop: '5px' }}>
                             {salaryData.total_planned_hours}ч план / {salaryData.total_actual_hours}ч факт

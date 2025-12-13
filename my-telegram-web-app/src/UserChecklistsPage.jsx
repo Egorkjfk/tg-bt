@@ -3,8 +3,8 @@ import { API_ENDPOINTS, API_URL } from './constants/api'
 import { useClientMQTT } from './ClientMQTT'
 import Webcam from 'react-webcam';
 
-// Компонент камеры
 
+// Компонент камеры
 const CameraModal = ({ isOpen, onClose, onPhotoTaken, checklistId, zoneId }) => {
   const webcamRef = useRef(null);
   const [facingMode, setFacingMode] = useState('environment');
@@ -217,7 +217,12 @@ const CameraModal = ({ isOpen, onClose, onPhotoTaken, checklistId, zoneId }) => 
           color: 'white', 
           padding: '15px', 
           textAlign: 'center',
-          backgroundColor: 'rgba(0,0,0,0.8)'
+          backgroundColor: 'rgba(0,0,0,0.8)',
+          position: 'absolute',
+          top: '70px',
+          left: 0,
+          right: 0,
+          zIndex: 1002
         }}>
           {error}
           {cameraError && (
@@ -244,89 +249,96 @@ const CameraModal = ({ isOpen, onClose, onPhotoTaken, checklistId, zoneId }) => 
       <div style={{
         position: 'absolute',
         bottom: '40px',
-        left: '50%',
-        transform: 'translateX(-50%)',
+        width: '100%',
         display: 'flex',
-        flexDirection: 'column',
+        justifyContent: 'center',
         alignItems: 'center',
-        gap: '15px'
+        zIndex: 1001,
+        padding: '0 20px',
+        boxSizing: 'border-box'
       }}>
-        {/* Кнопка съемки */}
-        <button
-          onClick={handleTakePhoto}
-          style={{
-            width: '70px',
-            height: '70px',
-            borderRadius: '50%',
-            backgroundColor: 'white',
-            border: '4px solid #333',
-            cursor: 'pointer',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            fontSize: '24px'
-          }}
-        >
-          📸
-        </button>
-
-        {/* Кнопка отправки всех фото */}
+        {/* Кнопка отправки - СЛЕВА (компактная) */}
         {capturedPhotos.length > 0 && (
           <button
             onClick={handleSendAllPhotos}
             style={{
-              padding: '10px 20px',
+              position: 'absolute',
+              left: '20px', // Прижато к левому краю
+              bottom: '0',
+              padding: '10px 15px', // Уменьшил padding
               backgroundColor: '#10b981',
               color: 'white',
               border: 'none',
-              borderRadius: '20px',
+              borderRadius: '20px', // Сделал менее круглой
               cursor: 'pointer',
-              fontSize: '16px',
-              fontWeight: 'bold'
+              fontSize: '14px', // Уменьшил шрифт
+              fontWeight: 'bold',
+              whiteSpace: 'nowrap',
+              boxShadow: '0 4px 12px rgba(0, 0, 0, 0.3)',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '6px', // Уменьшил расстояние между иконкой и текстом
+              zIndex: 1002,
+              maxWidth: '140px' // Ограничил максимальную ширину
             }}
           >
-            ✅ Отправить все фото ({capturedPhotos.length})
+            <span style={{ fontSize: '16px' }}>✅</span>
+            <span>Отправить ({capturedPhotos.length})</span>
           </button>
         )}
 
-        {/* Подсказка */}
-        <div style={{ color: 'white', fontSize: '14px', textAlign: 'center' }}>
-          {capturedPhotos.length === 0 
-            ? 'Нажмите для съемки' 
-            : 'Сделайте еще фото или отправьте все'}
+        {/* Кнопка съемки - ВСЕГДА ПО ЦЕНТРУ */}
+        <div style={{
+          display: 'flex',
+          justifyContent: 'center',
+          alignItems: 'center'
+        }}>
+          <button
+            onClick={handleTakePhoto}
+            style={{
+              width: '70px',
+              height: '70px',
+              borderRadius: '50%',
+              backgroundColor: 'white',
+              border: '4px solid #333',
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              fontSize: '24px',
+              boxShadow: '0 4px 12px rgba(0, 0, 0, 0.3)'
+            }}
+          >
+            📸
+          </button>
         </div>
       </div>
 
-      {/* Превью сделанных фото */}
+      {/* Превью сделанных фото - вертикальный список справа */}
       {capturedPhotos.length > 0 && (
         <div style={{
           position: 'absolute',
-          bottom: '150px',
-          left: '20px',
+          right: '20px',
+          bottom: '150px', // Начинаем от кнопок
           display: 'flex',
+          flexDirection: 'column-reverse', // Новые фото добавляются сверху
           gap: '10px',
-          maxWidth: 'calc(100% - 40px)',
-          overflowX: 'auto',
+          maxHeight: 'calc(100vh - 300px)', // Ограничиваем высоту
+          overflowY: 'auto', // Вертикальная прокрутка если много фото
           padding: '10px',
-          backgroundColor: 'rgba(0,0,0,0.5)',
-          borderRadius: '10px'
+          backgroundColor: 'rgba(0,0,0,0.7)',
+          borderRadius: '10px',
+          zIndex: 1001,
+          alignItems: 'flex-end' // Выравнивание по правому краю
         }}>
           {capturedPhotos.map((photo, index) => (
-            <div key={index} style={{ position: 'relative' }}>
-              <img 
-                src={`data:image/jpeg;base64,${photo}`}
-                alt={`Фото ${index + 1}`}
-                style={{
-                  width: '60px',
-                  height: '60px',
-                  borderRadius: '5px',
-                  objectFit: 'cover'
-                }}
-              />
+            <div key={index} style={{ 
+              position: 'relative',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '5px'
+            }}>
               <div style={{
-                position: 'absolute',
-                top: '-5px',
-                right: '-5px',
                 backgroundColor: '#3b82f6',
                 color: 'white',
                 borderRadius: '50%',
@@ -335,10 +347,21 @@ const CameraModal = ({ isOpen, onClose, onPhotoTaken, checklistId, zoneId }) => 
                 fontSize: '12px',
                 display: 'flex',
                 alignItems: 'center',
-                justifyContent: 'center'
+                justifyContent: 'center',
+                flexShrink: 0
               }}>
-                {index + 1}
+                {capturedPhotos.length - index} {/* Обратная нумерация */}
               </div>
+              <img
+                src={`data:image/jpeg;base64,${photo}`}
+                alt={`Фото ${capturedPhotos.length - index}`}
+                style={{
+                  width: '60px',
+                  height: '60px',
+                  borderRadius: '5px',
+                  objectFit: 'cover'
+                }}
+              />
             </div>
           ))}
         </div>
@@ -385,18 +408,18 @@ const UserChecklistsPage = ({ userData, onBack, lastUpdate, fullWidth = false })
   }
   try {
     // Используем showPopup вместо showAlert
-    if (typeof tg.showPopup === 'function') {
-      tg.showPopup({
-        title: 'Уведомление',
-        message: message,
-        buttons: [{ type: 'ok' }]
-      });
-    } else if (typeof tg.showAlert === 'function') {
-      // Для обратной совместимости
-      tg.showAlert(message);
-    } else {
-      console.log('Alert:', message);
-    }
+    // if (typeof tg.showPopup === 'function') {
+    //   tg.showPopup({
+    //     title: 'Уведомление',
+    //     message: message,
+    //     buttons: [{ type: 'ok' }]
+    //   });
+    // } else if (typeof tg.showAlert === 'function') {
+    //   // Для обратной совместимости
+    //   tg.showAlert(message);
+    // } else {
+    //   console.log('Alert:', message);
+    // }
   } catch (error) {
     if (error.message.includes('Popup is already opened')) {
       console.log('⚠️ Popup уже открыт, пропускаем уведомление');
@@ -432,6 +455,40 @@ const UserChecklistsPage = ({ userData, onBack, lastUpdate, fullWidth = false })
       )
     );
   };
+
+  // Функция для изменения статуса выполнения чек-листа
+const toggleChecklistStatus = async (checklistId, currentStatus) => {
+  try {
+    const response = await fetch(API_ENDPOINTS.UPDATE_CHECKLIST_STATUS, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        checklist_id: checklistId,
+        status: !currentStatus,
+        user_id: userData.id,
+        telegram_id: userData.telegram_id,
+      }),
+    })
+
+    if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`)
+    const result = await response.json()
+
+    if (result.status === 'success') {
+      // Локально обновляем статус
+      updateChecklist({
+        id: checklistId,
+        status: !currentStatus
+      });
+      
+      safeShowAlert(`✅ Статус чек-листа #${checklistId} изменен на ${!currentStatus ? 'выполнен' : 'не выполнен'}`);
+    } else {
+      throw new Error(result.message || 'Ошибка при изменении статуса')
+    }
+  } catch (err) {
+    console.error('❌ Ошибка изменения статуса чек-листа:', err)
+    safeShowAlert('Ошибка при изменении статуса: ' + err.message)
+  }
+}
 
   // Получение текущей даты с сервера
   const fetchCurrentDate = async () => {
@@ -598,7 +655,7 @@ const closeCamera = () => {
     // photos - массив base64 строк
     const combinedPhotoData = photos.join(',');
     
-    const response = await fetch(API_ENDPOINTS.UPLOAD_CHECKLIST_PHOTO, {
+    const response = await fetch(API_ENDPOINTS.ADD_CHECKLIST_PHOTO, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -635,7 +692,7 @@ const closeCamera = () => {
       // Объединяем все фото в одну строку с разделителем
       const combinedPhotoData = photos.join(',');
       
-      const response = await fetch(API_ENDPOINTS.UPLOAD_CHECKLIST_PHOTO, {
+      const response = await fetch(API_ENDPOINTS.ADD_CHECKLIST_PHOTO, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -674,116 +731,161 @@ const closeCamera = () => {
     }
   }, [userData, lastUpdate]);
   
-  // Обрабатываем сообщения MQTT - ОПТИМИЗИРОВАННАЯ ВЕРСИЯ
-   useEffect(() => {
-     if (allMessages && allMessages.length > 0) {
-       const lastMessage = allMessages[allMessages.length - 1];
-       const notificationId = `msg_${lastMessage.type}_${lastMessage.checklist_id}_${Date.now()}`;
-       
-       if (!shownNotifications.has(notificationId)) {
-         setShownNotifications(prev => new Set([...prev, notificationId]));
-         
-         // Обработка сообщений о новых чек-листах
-         if (lastMessage.Subtype === 'checklist_created' && lastMessage.Type === 'checklist') {
-           console.log('📥 Получено уведомление о новом чек-листе:', lastMessage);
-           
-           // Извлекаем данные чек-листа из сообщения
-           const checklistData = lastMessage.checklist;
-           
-           // Создаем объект чек-листа
-           const newChecklist = {
-             id: checklistData.id,
-             zone_id: checklistData.zone_id,
-             description: checklistData.description,
-             date: checklistData.date,
-             issue_time: checklistData.issue_time,
-             status: checklistData.status,
-             confirmed: checklistData.confirmed,
-             photo: checklistData.photo || null
-           };
-           
-           // Добавляем в список
-           updateChecklist(newChecklist);
-           safeShowAlert(`📋 Новый чек-лист для зоны ${checklistData.zone_id}: ${checklistData.description}`);
-         }
-         
-         // Обработка сообщений о подтверждении чек-листа
-         else if (lastMessage.Subtype === 'confirmation_changed' && lastMessage.Type === 'checklist') {
-           console.log('📥 Получено уведомление об изменении подтверждения:', lastMessage);
-           
-           // Извлекаем данные чек-листа из сообщения
-           const checklistData = lastMessage.checklist;
-           
-           // Обновляем статус чек-листа
-           updateChecklist({
-             id: checklistData.id,
-             status: checklistData.status,
-             confirmed: checklistData.confirmed
-           });
-           
-           if (checklistData.confirmed) {
-             safeShowAlert(`✅ Чек-лист #${checklistData.id} подтвержден администратором`);
-           } else if (checklistData.status && !checklistData.confirmed) {
-             safeShowAlert(`⏳ Чек-лист #${checklistData.id} выполнен, ожидает подтверждения`);
-           }
-         }
-         
-         // Обработка сообщений о загрузке фото
-         else if (lastMessage.Subtype === 'photo_uploaded' && lastMessage.Type === 'checklist') {
-           console.log('📥 Получено уведомление о новом фото:', lastMessage);
-           
-           // Извлекаем данные чек-листа из сообщения
-           const checklistData = lastMessage.checklist;
-           
-           // Добавляем фото к чек-листу
-           addPhotoToChecklist(checklistData.id, checklistData.photo);
-           safeShowAlert(`📸 Добавлено фото к чек-листу #${checklistData.id}`);
-         }
-         
-         // Обработка сообщений о подтверждении пользователя
-         else if (lastMessage.type === 'user_confirmation' && lastMessage.user_id === userData?.id) {
-           console.log('📥 Получено уведомление о подтверждении пользователя:', lastMessage);
-           
-           // Обновляем статус подтверждения пользователя
-           safeShowAlert(lastMessage.confirmed
-             ? 'Ваш аккаунт был подтвержден администратором!'
-             : 'Ваш аккаунт был отклонен администратором.');
-           
-           // Обновляем страницу, чтобы пользователь перешел в профиль
-           if (lastMessage.confirmed) {
-             window.location.reload();
-           }
-         }
-         
-         // Обработка сообщений о фото (альтернативный формат)
-         else if (lastMessage.type === 'photo') {
-           console.log('📥 Получено уведомление о фото (альтернативный формат):', lastMessage);
-           
-           // Добавляем фото к чек-листу
-           addPhotoToChecklist(lastMessage.checklist_id, lastMessage.photo_path);
-           safeShowAlert(`📸 Добавлено фото к чек-листу #${lastMessage.checklist_id}`);
-         }
-         
-         // Обработка сообщений о статусе (альтернативный формат)
-         else if (lastMessage.type === 'status') {
-           console.log('📥 Получено уведомление о статусе (альтернативный формат):', lastMessage);
-           
-           // Обновляем статус чек-листа
-           updateChecklist({
-             id: lastMessage.checklist_id,
-             status: lastMessage.status,
-             confirmed: lastMessage.confirmed
-           });
-           
-           if (lastMessage.confirmed) {
-             safeShowAlert(`✅ Чек-лист #${lastMessage.checklist_id} подтвержден администратором`);
-           } else if (lastMessage.status && !lastMessage.confirmed) {
-             safeShowAlert(`⏳ Чек-лист #${lastMessage.checklist_id} выполнен, ожидает подтверждения`);
-           }
-         }
-       }
-     }
-   }, [allMessages, userData?.id]);
+ // Обрабатываем сообщения MQTT - ОПТИМИЗИРОВАННАЯ ВЕРСИЯ
+useEffect(() => {
+  if (allMessages && allMessages.length > 0) {
+    const lastMessage = allMessages[allMessages.length - 1];
+    const notificationId = `msg_${lastMessage.type}_${lastMessage.checklist_id}_${Date.now()}`;
+    
+    if (!shownNotifications.has(notificationId)) {
+      setShownNotifications(prev => new Set([...prev, notificationId]));
+      
+      // Обработка сообщений о новых чек-листах
+      if (lastMessage.Subtype === 'checklist_created' && lastMessage.Type === 'checklist') {
+        console.log('📥 Получено уведомление о новом чек-листе:', lastMessage);
+        
+        // Извлекаем данные чек-листа из сообщения
+        const checklistData = lastMessage.checklist;
+        
+        // Создаем объект чек-листа
+        const newChecklist = {
+          id: checklistData.id,
+          zone_id: checklistData.zone_id,
+          description: checklistData.description,
+          date: checklistData.date,
+          issue_time: checklistData.issue_time,
+          status: checklistData.status,
+          confirmed: checklistData.confirmed,
+          photo: checklistData.photo || null
+        };
+        
+        // Добавляем в список
+        updateChecklist(newChecklist);
+        safeShowAlert(`📋 Новый чек-лист для зоны ${checklistData.zone_id}: ${checklistData.description}`);
+      }
+      
+      // Обработка сообщений о подтверждении чек-листа
+      else if (lastMessage.Subtype === 'confirmation_changed' && lastMessage.Type === 'checklist') {
+        console.log('📥 Получено уведомление об изменении подтверждения:', lastMessage);
+        
+        // Извлекаем данные чек-листа из сообщения
+        const checklistData = lastMessage.checklist;
+        
+        // Обновляем статус чек-листа
+        updateChecklist({
+          id: checklistData.id,
+          status: checklistData.status,
+          confirmed: checklistData.confirmed
+        });
+        
+        if (checklistData.confirmed) {
+          safeShowAlert(`✅ Чек-лист #${checklistData.id} подтвержден администратором`);
+        } else if (checklistData.status && !checklistData.confirmed) {
+          safeShowAlert(`⏳ Чек-лист #${checklistData.id} выполнен, ожидает подтверждения`);
+        }
+      }
+      
+      // Обработка сообщений о загрузке фото
+      else if (lastMessage.Subtype === 'photo_uploaded' && lastMessage.Type === 'checklist') {
+        console.log('📥 Получено уведомление о новом фото:', lastMessage);
+        
+        // Извлекаем данные чек-листа из сообщения
+        const checklistData = lastMessage.checklist;
+        
+        // Добавляем фото к чек-листу
+        addPhotoToChecklist(checklistData.id, checklistData.photo);
+        safeShowAlert(`📸 Добавлено фото к чек-листу #${checklistData.id}`);
+      }
+      
+      // Обработка сообщений о подтверждении пользователя
+      else if (lastMessage.type === 'user_confirmation' && lastMessage.user_id === userData?.id) {
+        console.log('📥 Получено уведомление о подтверждении пользователя:', lastMessage);
+        
+        // Обновляем статус подтверждения пользователя
+        safeShowAlert(lastMessage.confirmed
+          ? 'Ваш аккаунт был подтвержден администратором!'
+          : 'Ваш аккаунт был отклонен администратором.');
+        
+        // Обновляем страницу, чтобы пользователь перешел в профиль
+        if (lastMessage.confirmed) {
+          window.location.reload();
+        }
+      }
+      
+      // Обработка сообщений о фото (альтернативный формат)
+      else if (lastMessage.type === 'photo') {
+        console.log('📥 Получено уведомление о фото (альтернативный формат):', lastMessage);
+        
+        // Добавляем фото к чек-листу
+        addPhotoToChecklist(lastMessage.checklist_id, lastMessage.photo_path);
+        safeShowAlert(`📸 Добавлено фото к чек-листу #${lastMessage.checklist_id}`);
+      }
+      
+      // Обработка сообщений о статусе (альтернативный формат)
+      else if (lastMessage.type === 'status') {
+        console.log('📥 Получено уведомление о статусе (альтернативный формат):', lastMessage);
+        
+        // Обновляем статус чек-листа
+        updateChecklist({
+          id: lastMessage.checklist_id,
+          status: lastMessage.status,
+          confirmed: lastMessage.confirmed
+        });
+        
+        if (lastMessage.confirmed) {
+          safeShowAlert(`✅ Чек-лист #${lastMessage.checklist_id} подтвержден администратором`);
+        } else if (lastMessage.status && !lastMessage.confirmed) {
+          safeShowAlert(`⏳ Чек-лист #${lastMessage.checklist_id} выполнен, ожидает подтверждения`);
+        }
+      }
+
+      // Добавь этот блок в обработку MQTT сообщений (в useEffect где обрабатываются сообщения)
+      else if (lastMessage.Subtype === 'status_changed' && lastMessage.Type === 'checklist') {
+        console.log('📥 Получено уведомление об изменении статуса выполнения:', lastMessage);
+        
+        // Извлекаем данные чек-листа из сообщения
+        const checklistData = lastMessage.checklist;
+        
+        // Обновляем статус чек-листа
+        updateChecklist({
+          id: checklistData.id,
+          status: checklistData.status,
+          confirmed: checklistData.confirmed || false,
+          zone_id: checklistData.zone_id,
+          description: checklistData.description,
+          date: checklistData.date,
+          issue_time: checklistData.issue_time,
+          photo: checklistData.photo || null
+        });
+        
+        safeShowAlert(`✅ Чек-лист #${checklistData.id} ${checklistData.status ? 'отмечен как выполненный' : 'отмечен как невыполненный'}`);
+      }
+      
+      // Обработка сообщений об изменении описания
+      else if (lastMessage.Subtype === 'description_updated' && lastMessage.Type === 'checklist') {
+        console.log('📥 Получено уведомление об изменении описания:', lastMessage);
+        
+        const checklistData = lastMessage.checklist;
+        updateChecklist({
+          id: checklistData.id,
+          description: checklistData.description
+        });
+        
+        safeShowAlert(`✏️ Описание чек-листа #${checklistData.id} обновлено`);
+      }
+
+      // Обработка сообщений об удалении
+      else if (lastMessage.Subtype === 'deleted' && lastMessage.Type === 'checklist') {
+        console.log('📥 Получено уведомление об удалении:', lastMessage);
+        
+        const checklistData = lastMessage.checklist;
+        setChecklists(prev => prev.filter(c => c.id !== checklistData.id));
+        
+        safeShowAlert(`🗑️ Чек-лист #${checklistData.id} удален`);
+      }
+    }
+  }
+}, [allMessages, userData?.id]);
 
   // Получение названия зоны по ID
   const getZoneName = (zoneId) => {
@@ -928,66 +1030,106 @@ const closeCamera = () => {
                       {new Date(checklist.issue_time).toLocaleTimeString()}
                     </div>
                   </div>
-                  <div
-                    style={{
-                      display: 'flex',
-                      flexDirection: 'column',
-                      alignItems: 'flex-end',
-                      gap: '5px',
-                    }}
-                  >
-                    <span
-                      style={{
-                        padding: '2px 8px',
-                        borderRadius: '12px',
-                        fontSize: '10px',
-                        fontWeight: 'bold',
-                        backgroundColor: checklist.status
-                          ? '#38a169'
-                          : '#e53e3e',
-                        color: 'white',
-                      }}
-                    >
-                      {checklist.status ? '✅ Выполнено' : '❌ Не выполнено'}
-                    </span>
-                    
-                    {/* Маркировка подтверждения чеклиста */}
-                    <span
-                      style={{
-                        padding: '2px 8px',
-                        borderRadius: '12px',
-                        fontSize: '10px',
-                        fontWeight: 'bold',
-                        backgroundColor: checklist.confirmed
-                          ? '#4299e1'
-                          : '#a0aec0',
-                        color: 'white',
-                      }}
-                    >
-                      {checklist.confirmed ? '☑ Подтверждено' : '⏳ Ожидает'}
-                    </span>
-                    
-                    {/* Кнопка "Сделать фото" для невыполненных чек-листов */}
-                    {!checklist.status && (
-                      <button
-                onClick={() => handleTakePhoto(checklist.id)}
-                disabled={loading}
-                style={{
-                  padding: '8px 12px',
-                  backgroundColor: loading ? '#9ca3af' : '#3b82f6',
-                  color: 'white',
-                  border: 'none',
-                  borderRadius: '6px',
-                  fontSize: '12px',
-                  fontWeight: 'bold',
-                  cursor: loading ? 'not-allowed' : 'pointer',
-                  marginTop: '4px',
-                }}
-              >
-                {loading ? '⏳ Загрузка...' : '📷 Сделать фото'}
-              </button>
-                    )}
-                  </div>
+<div
+  style={{
+    display: 'flex',
+    flexDirection: 'column',
+    alignItems: 'flex-end',
+    gap: '5px',
+  }}
+>
+  {/* Статусы вверху */}
+  <div style={{ display: 'flex', gap: '5px' }}>
+    <span
+      style={{
+        padding: '2px 8px',
+        borderRadius: '12px',
+        fontSize: '10px',
+        fontWeight: 'bold',
+        backgroundColor: checklist.status
+          ? '#38a169'
+          : '#e53e3e',
+        color: 'white',
+      }}
+    >
+      {checklist.status ? '✅ Выполнено' : '❌ Не выполнено'}
+    </span>
+    
+    <span
+      style={{
+        padding: '2px 8px',
+        borderRadius: '12px',
+        fontSize: '10px',
+        fontWeight: 'bold',
+        backgroundColor: checklist.confirmed
+          ? '#4299e1'
+          : '#a0aec0',
+        color: 'white',
+      }}
+    >
+      {checklist.confirmed ? '☑ Подтверждено' : '⏳ Ожидает'}
+    </span>
+  </div>
+  
+  {/* Кнопки в одной строке */}
+  <div style={{ 
+    display: 'flex', 
+    gap: '6px',
+    marginTop: '4px'
+  }}>
+    {/* Кнопка "Сделал" */}
+    <button
+      onClick={() => toggleChecklistStatus(checklist.id, checklist.status)}
+      disabled={loading}
+      style={{
+        padding: '6px 8px',
+        backgroundColor: checklist.status ? '#38a169' : '#e53e3e',
+        color: 'white',
+        border: 'none',
+        borderRadius: '6px',
+        fontSize: '11px',
+        fontWeight: 'bold',
+        cursor: loading ? 'not-allowed' : 'pointer',
+        minWidth: '60px',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        gap: '3px'
+      }}
+      title={checklist.status ? "Отметить как невыполненный" : "Отметить как выполненный"}
+    >
+      {checklist.status ? '✅' : '❌'}
+      <span>{checklist.status ? 'Сделал' : 'Не сделал'}</span>
+    </button>
+    
+    {/* Кнопка "Фото" - всегда показываем, но меняем цвет */}
+    <button
+      onClick={() => handleTakePhoto(checklist.id)}
+      disabled={loading}
+      style={{
+        padding: '6px 8px',
+        backgroundColor: loading ? '#9ca3af' : 
+          (!checklist.status ? '#3b82f6' : 
+          (checklist.photo ? '#10b981' : '#8b5cf6')),
+        color: 'white',
+        border: 'none',
+        borderRadius: '6px',
+        fontSize: '11px',
+        fontWeight: 'bold',
+        cursor: loading ? 'not-allowed' : 'pointer',
+        minWidth: '60px',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        gap: '3px'
+      }}
+      title="Сделать или добавить фото"
+    >
+      {loading ? '⏳' : '📷'}
+      <span>Фото</span>
+    </button>
+  </div>
+</div>
                 </div>
 
                 {checklist.photo && (

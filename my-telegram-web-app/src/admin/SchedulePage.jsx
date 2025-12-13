@@ -10,8 +10,8 @@ const SchedulePage = ({ userData, worker, onBack }) => {
 	const [showAddModal, setShowAddModal] = useState(false)
 	const [newSchedule, setNewSchedule] = useState({
 			worker_id: worker.id,
-			zone_id: null, // или 0, но лучше null для проверки
-			dates: [], // изменяем на массив дат
+			zone_id: null,
+			dates: [],
 			planned_start_time: '09:00',
 			planned_end_time: '18:00'
 		})
@@ -80,50 +80,36 @@ const SchedulePage = ({ userData, worker, onBack }) => {
 	const handleCurrentWeek = () => setWeekOffset(0)
 
 	// Получение названия дня недели
-		const getDayName = dateString => {
-			// Убираем 'T00:00:00Z' и парсим как локальную дату
-			const cleanDate = dateString.split('T')[0]
-			const date = new Date(cleanDate + 'T00:00:00')
-			const days = ['ВС', 'ПН', 'ВТ', 'СР', 'ЧТ', 'ПТ', 'СБ']
-			const dayIndex = date.getDay()
-			return isNaN(dayIndex) ? 'Н/Д' : days[dayIndex]
-		}
+	const getDayName = dateString => {
+		const cleanDate = dateString.split('T')[0]
+		const date = new Date(cleanDate + 'T00:00:00')
+		const days = ['ВС', 'ПН', 'ВТ', 'СР', 'ЧТ', 'ПТ', 'СБ']
+		const dayIndex = date.getDay()
+		return isNaN(dayIndex) ? 'Н/Д' : days[dayIndex]
+	}
 
 	// Получение названия месяца
-			const getMonthName = dateString => {
-		// Убираем 'T00:00:00Z' и парсим как локальную дату
+	const getMonthName = dateString => {
 		const cleanDate = dateString.split('T')[0]
 		const date = new Date(cleanDate + 'T00:00:00')
 		const months = [
-			'Янв',
-			'Фев',
-			'Мар',
-			'Апр',
-			'Май',
-			'Июн',
-			'Июл',
-			'Авг',
-			'Сен',
-			'Окт',
-			'Ноя',
-			'Дек',
+			'Янв', 'Фев', 'Мар', 'Апр', 'Май', 'Июн',
+			'Июл', 'Авг', 'Сен', 'Окт', 'Ноя', 'Дек',
 		]
 		return months[date.getMonth()]
 	}
 
 	const formatTime = timeString => {
 		if (!timeString) return ''
-		// Время приходит как "0000-01-01T09:00:00Z" - берем часть после T и до Z
-		const timePart = timeString.split('T')[1] // "09:00:00Z"
-		return timePart ? timePart.slice(0, 5) : '' // "09:00"
+		const timePart = timeString.split('T')[1]
+		return timePart ? timePart.slice(0, 5) : ''
 	}
 
-	// Получение числа дня - исправляем парсинг даты
+	// Получение числа дня
 	const getDayNumber = dateString => {
-		// Убираем 'T00:00:00Z' и парсим как локальную дату
 		const cleanDate = dateString.split('T')[0]
 		const date = new Date(cleanDate + 'T00:00:00')
-		return date.getDate() // возвращает число (29, 30, etc)
+		return date.getDate()
 	}
 
 	// Получение заголовка недели
@@ -137,54 +123,53 @@ const SchedulePage = ({ userData, worker, onBack }) => {
 	}
 
 	// Обработчик создания нового расписания
-		const handleCreateSchedule = async () => {
-			if (!newSchedule.zone_id && newSchedule.zone_id !== 0 || newSchedule.dates.length === 0) {
-				alert('Пожалуйста, заполните все обязательные поля')
-				return
-			}
-	
-			try {
-				// Создаем отдельные записи для каждой даты
-				for (const date of newSchedule.dates) {
-					const response = await fetch(`${API_URL}/create-schedule`, {
-						method: 'POST',
-						headers: { 'Content-Type': 'application/json' },
-						body: JSON.stringify({
-							worker_id: newSchedule.worker_id,
-							zone_id: newSchedule.zone_id,
-							date: date,
-							planned_start_time: newSchedule.planned_start_time,
-							planned_end_time: newSchedule.planned_end_time,
-							admin_id: userData.id,
-							telegram_id: userData.telegram_id,
-						}),
-					})
-	
-					if (!response.ok)
-						throw new Error(`HTTP error! status: ${response.status}`)
-	
-					const result = await response.json()
-	
-					if (result.status !== 'success') {
-						throw new Error(result.message || 'Ошибка при создании смены')
-					}
-				}
-	
-				setShowAddModal(false)
-				setNewSchedule({
-					worker_id: worker.id,
-					zone_id: null,
-					dates: [],
-					planned_start_time: '09:00',
-					planned_end_time: '18:00'
-				})
-				fetchSchedule() // Обновляем расписание
-				alert('Смены успешно добавлены!')
-			} catch (err) {
-				console.error('❌ Ошибка создания смены:', err)
-				alert('Ошибка при создании смены: ' + err.message)
-			}
+	const handleCreateSchedule = async () => {
+		if (!newSchedule.zone_id && newSchedule.zone_id !== 0 || newSchedule.dates.length === 0) {
+			alert('Пожалуйста, заполните все обязательные поля')
+			return
 		}
+	
+		try {
+			for (const date of newSchedule.dates) {
+				const response = await fetch(`${API_URL}/create-schedule`, {
+					method: 'POST',
+					headers: { 'Content-Type': 'application/json' },
+					body: JSON.stringify({
+						worker_id: newSchedule.worker_id,
+						zone_id: newSchedule.zone_id,
+						date: date,
+						planned_start_time: newSchedule.planned_start_time,
+						planned_end_time: newSchedule.planned_end_time,
+						admin_id: userData.id,
+						telegram_id: userData.telegram_id,
+					}),
+				})
+	
+				if (!response.ok)
+					throw new Error(`HTTP error! status: ${response.status}`)
+	
+				const result = await response.json()
+	
+				if (result.status !== 'success') {
+					throw new Error(result.message || 'Ошибка при создании смены')
+				}
+			}
+	
+			setShowAddModal(false)
+			setNewSchedule({
+				worker_id: worker.id,
+				zone_id: null,
+				dates: [],
+				planned_start_time: '09:00',
+				planned_end_time: '18:00'
+			})
+			fetchSchedule()
+			alert('Смены успешно добавлены!')
+		} catch (err) {
+			console.error('❌ Ошибка создания смены:', err)
+			alert('Ошибка при создании смены: ' + err.message)
+		}
+	}
 
 	// Обработчик обновления времени начала
 	const handleUpdateStartTime = async (scheduleId, time) => {
@@ -206,7 +191,6 @@ const SchedulePage = ({ userData, worker, onBack }) => {
 			const result = await response.json()
 
 			if (result.status === 'success') {
-				// Обновляем локальное состояние
 				setSchedules(prevSchedules =>
 					prevSchedules.map(schedule =>
 						schedule.id === scheduleId
@@ -243,7 +227,6 @@ const SchedulePage = ({ userData, worker, onBack }) => {
 			const result = await response.json()
 
 			if (result.status === 'success') {
-				// Обновляем локальное состояние
 				setSchedules(prevSchedules =>
 					prevSchedules.map(schedule =>
 						schedule.id === scheduleId
@@ -265,11 +248,9 @@ const SchedulePage = ({ userData, worker, onBack }) => {
 		const confirmDelete = window.confirm('Вы уверены, что хотите удалить это расписание?')
 		if (!confirmDelete) return
 		
-		// Проверяем, что дата не прошедшая
 		const currentDate = new Date()
 		const scheduleDateObj = new Date(scheduleDate.split('T')[0])
 		
-		// Устанавливаем текущую дату начало дня для корректного сравнения
 		currentDate.setHours(0, 0, 0, 0)
 		scheduleDateObj.setHours(0, 0, 0, 0)
 		
@@ -297,7 +278,6 @@ const SchedulePage = ({ userData, worker, onBack }) => {
 			const result = await response.json()
 			
 			if (result.status === 'success') {
-				// Удаляем расписание из локального состояния
 				setSchedules(prevSchedules =>
 					prevSchedules.filter(schedule => schedule.id !== scheduleId)
 				)
@@ -319,22 +299,25 @@ const SchedulePage = ({ userData, worker, onBack }) => {
 	}, [worker, weekOffset])
 	
 	return (
-	<div
+		<div
 			style={{
-				padding: '15px',
-				fontFamily: 'system-ui, sans-serif',
-				backgroundColor: '#f8fafc',
-				minHeight: '100vh',
+				backgroundColor: 'white',
+				borderRadius: '0px',
+				padding: '0px',
+				margin: '0',
+				width: '100%',
+				overflow: 'hidden',
+				minHeight: '100vh'
 			}}
 		>
 			{/* Заголовок */}
 			<div
 				style={{
 					backgroundColor: 'white',
-					borderRadius: '16px',
+					borderRadius: '0px',
 					padding: '20px',
-					marginBottom: '15px',
-					boxShadow: '0 2px 8px rgba(0,0,0,0.08)',
+					marginBottom: '0px',
+					boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
 				}}
 			>
 				<div
@@ -360,7 +343,7 @@ const SchedulePage = ({ userData, worker, onBack }) => {
 					</button>
 					<h1
 						style={{
-							color: '#05969',
+							color: '#1f2937',
 							margin: 0,
 							fontSize: '20px',
 						}}
@@ -405,9 +388,9 @@ const SchedulePage = ({ userData, worker, onBack }) => {
 			<div
 				style={{
 					backgroundColor: 'white',
-					borderRadius: '16px',
+					borderRadius: '0px',
 					padding: '20px',
-					boxShadow: '0 2px 8px rgba(0,0,0,0.08)',
+					boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
 				}}
 			>
 				{/* Заголовок расписания */}
@@ -561,7 +544,7 @@ const SchedulePage = ({ userData, worker, onBack }) => {
 						</div>
 					</div>
 				) : (
-					<div style={{ maxHeight: '400px', overflowY: 'auto' }}>
+					<div style={{ overflowY: 'visible' }}>
 						{schedules.map((schedule, index) => (
 							<div
 								key={schedule.id}
@@ -606,36 +589,48 @@ const SchedulePage = ({ userData, worker, onBack }) => {
 											{getMonthName(schedule.date)}
 										</div>
 									</div>
-									<div
-										style={{
-											fontSize: '12px',
-											color: '#6b7280',
-										}}
-									>
-										Зона #{schedule.zone_id}
-									</div>
 								</div>
-								
-								{/* Отображение изображения зоны */}
+
+								{/* Отображение изображения зоны или названия */}
 								{(() => {
 									const zone = zones.find(z => z.id === schedule.zone_id);
-									return zone && zone.image_path ? (
-										<div style={{ marginTop: '12px', textAlign: 'center' }}>
-											<img
-												src={`${API_BASE_URL}${zone.image_path}`}
-												alt={zone.name}
-												style={{
-													maxWidth: '100%',
-													maxHeight: '100px',
+									if (zone) {
+										if (zone.image_path) {
+											return (
+												<div style={{ marginTop: '12px', textAlign: 'center' }}>
+													<img
+														src={`${API_BASE_URL}${zone.image_path}`}
+														alt={zone.name}
+														style={{
+															maxWidth: '100%',
+															maxHeight: '100px',
+															borderRadius: '8px',
+															border: '1px solid #e5e7eb',
+														}}
+													/>
+													<div style={{ fontSize: '12px', marginTop: '4px', color: '#4b5563' }}>
+														{zone.name}
+													</div>
+												</div>
+											);
+										} else {
+											return (
+												<div style={{ 
+													marginTop: '12px', 
+													textAlign: 'center',
+													padding: '8px',
+													backgroundColor: '#f3f4f6',
 													borderRadius: '8px',
-													border: '1px solid #e5e7eb',
-												}}
-											/>
-											<div style={{ fontSize: '12px', marginTop: '4px', color: '#4b5563' }}>
-												{zone.name}
-											</div>
-										</div>
-									) : null;
+													border: '1px solid #e5e7eb'
+												}}>
+													<div style={{ fontSize: '14px', fontWeight: '500', color: '#374151' }}>
+														🏷️ {zone.name}
+													</div>
+												</div>
+											);
+										}
+									}
+									return null;
 								})()}
 
 								{/* Время */}
@@ -644,6 +639,7 @@ const SchedulePage = ({ userData, worker, onBack }) => {
 										display: 'grid',
 										gridTemplateColumns: '1fr 1fr',
 										gap: '12px',
+										marginTop: '12px',
 									}}
 								>
 									{/* Планируемое время */}
@@ -689,9 +685,7 @@ const SchedulePage = ({ userData, worker, onBack }) => {
 											}}
 										>
 											{schedule.actual_start_time && schedule.actual_end_time
-												? `${formatTime(
-														schedule.actual_start_time
-												  )} - ${formatTime(schedule.actual_end_time)}`
+												? `${formatTime(schedule.actual_start_time)} - ${formatTime(schedule.actual_end_time)}`
 												: schedule.actual_start_time
 												? `${formatTime(schedule.actual_start_time)} - ...`
 												: 'Не начато'}
@@ -719,7 +713,7 @@ const SchedulePage = ({ userData, worker, onBack }) => {
 												border: '1px solid #d1d5db',
 												borderRadius: '6px',
 												fontSize: '12px',
-												backgroundColor: schedule.actual_start_time ? 'white' : 'white',
+												backgroundColor: 'white',
 											}}
 											placeholder="Начало"
 										/>
@@ -761,7 +755,7 @@ const SchedulePage = ({ userData, worker, onBack }) => {
 												? '#10b981'
 												: schedule.actual_start_time
 												? '#f59e0b'
-												: '#ef444',
+												: '#ef4444',
 											color: 'white',
 										}}
 									>
@@ -772,17 +766,221 @@ const SchedulePage = ({ userData, worker, onBack }) => {
 											: '❌ Не начато'}
 									</span>
 								</div>
+
+{/* Фотографии начала и окончания смены */}
+<div
+	style={{
+		marginTop: '12px',
+		display: 'grid',
+		gridTemplateColumns: '1fr 1fr',
+		gap: '12px',
+		width: '100%', // Явно указываем ширину
+		boxSizing: 'border-box'
+	}}
+>
+	{/* Фото начала смены */}
+	<div style={{ 
+		width: '100%',
+		display: 'flex',
+		flexDirection: 'column',
+		overflow: 'hidden' // Скрываем все что выходит за пределы
+	}}>
+		<div style={{ 
+			fontSize: '12px', 
+			color: '#6b7280', 
+			marginBottom: '6px',
+			whiteSpace: 'nowrap',
+			overflow: 'hidden',
+			textOverflow: 'ellipsis'
+		}}>
+			📸 Начало ({schedule.photo_start ? schedule.photo_start.split(',').length : 0})
+		</div>
+		<div style={{ 
+			height: '100px',
+			width: '100%',
+			display: 'flex',
+			overflowX: 'auto',
+			overflowY: 'hidden',
+			padding: '8px',
+			backgroundColor: schedule.photo_start ? '#f8fafc' : '#f3f4f6',
+			border: '1px solid #e5e7eb',
+			borderRadius: '8px',
+			alignItems: 'center'
+		}}>
+			{schedule.photo_start ? (
+				<div style={{ 
+					display: 'flex', 
+					flexDirection: 'row',
+					gap: '8px',
+					alignItems: 'center',
+					flexWrap: 'nowrap',
+					height: '100%'
+				}}>
+					{schedule.photo_start.split(',').map((photo, index) => (
+						<div key={index} style={{
+							position: 'relative',
+							height: '80px',
+							flexShrink: 0
+						}}>
+							<img
+								src={`${API_BASE_URL}${photo.trim()}`}
+								alt={`Начало смены ${index + 1}`}
+								style={{
+									width: '80px',
+									height: '80px',
+									borderRadius: '6px',
+									border: '1px solid #e5e7eb',
+									objectFit: 'cover'
+								}}
+								onError={(e) => {
+									e.target.style.display = 'none';
+								}}
+							/>
+							<div style={{
+								position: 'absolute',
+								top: '-6px',
+								right: '-6px',
+								backgroundColor: '#3b82f6',
+								color: 'white',
+								borderRadius: '50%',
+								width: '20px',
+								height: '20px',
+								fontSize: '10px',
+								display: 'flex',
+								alignItems: 'center',
+								justifyContent: 'center',
+								border: '2px solid white'
+							}}>
+								{index + 1}
+							</div>
+						</div>
+					))}
+				</div>
+			) : (
+				<div style={{
+					display: 'flex',
+					alignItems: 'center',
+					justifyContent: 'center',
+					width: '100%',
+					height: '100%',
+					color: '#9ca3af',
+					fontSize: '12px'
+				}}>
+					<div style={{ textAlign: 'center' }}>
+						<div style={{ fontSize: '20px', marginBottom: '4px' }}>📷</div>
+						<div>Нет фото</div>
+					</div>
+				</div>
+			)}
+		</div>
+	</div>
+
+	{/* Фото окончания смены */}
+	<div style={{ 
+		width: '100%',
+		display: 'flex',
+		flexDirection: 'column',
+		overflow: 'hidden' // Скрываем все что выходит за пределы
+	}}>
+		<div style={{ 
+			fontSize: '12px', 
+			color: '#6b7280', 
+			marginBottom: '6px',
+			whiteSpace: 'nowrap',
+			overflow: 'hidden',
+			textOverflow: 'ellipsis'
+		}}>
+			📸 Окончание ({schedule.photo_end ? schedule.photo_end.split(',').length : 0})
+		</div>
+		<div style={{ 
+			height: '100px',
+			width: '100%',
+			display: 'flex',
+			overflowX: 'auto',
+			overflowY: 'hidden',
+			padding: '8px',
+			backgroundColor: schedule.photo_end ? '#f8fafc' : '#f3f4f6',
+			border: '1px solid #e5e7eb',
+			borderRadius: '8px',
+			alignItems: 'center'
+		}}>
+			{schedule.photo_end ? (
+				<div style={{ 
+					display: 'flex', 
+					flexDirection: 'row',
+					gap: '8px',
+					alignItems: 'center',
+					flexWrap: 'nowrap',
+					height: '100%'
+				}}>
+					{schedule.photo_end.split(',').map((photo, index) => (
+						<div key={index} style={{
+							position: 'relative',
+							height: '80px',
+							flexShrink: 0
+						}}>
+							<img
+								src={`${API_BASE_URL}${photo.trim()}`}
+								alt={`Окончание смены ${index + 1}`}
+								style={{
+									width: '80px',
+									height: '80px',
+									borderRadius: '6px',
+									border: '1px solid #e5e7eb',
+									objectFit: 'cover'
+								}}
+								onError={(e) => {
+									e.target.style.display = 'none';
+								}}
+							/>
+							<div style={{
+								position: 'absolute',
+								top: '-6px',
+								right: '-6px',
+								backgroundColor: '#10b981',
+								color: 'white',
+								borderRadius: '50%',
+								width: '20px',
+								height: '20px',
+								fontSize: '10px',
+								display: 'flex',
+								alignItems: 'center',
+								justifyContent: 'center',
+								border: '2px solid white'
+							}}>
+								{index + 1}
+							</div>
+						</div>
+					))}
+				</div>
+			) : (
+				<div style={{
+					display: 'flex',
+					alignItems: 'center',
+					justifyContent: 'center',
+					width: '100%',
+					height: '100%',
+					color: '#9ca3af',
+					fontSize: '12px'
+				}}>
+					<div style={{ textAlign: 'center' }}>
+						<div style={{ fontSize: '20px', marginBottom: '4px' }}>📷</div>
+						<div>Нет фото</div>
+					</div>
+				</div>
+			)}
+		</div>
+	</div>
+</div>
 								
 								{/* Кнопка удаления расписания */}
 								{(() => {
 									const currentDate = new Date()
 									const scheduleDateObj = new Date(schedule.date.split('T')[0])
 									
-									// Устанавливаем текущую дату начало дня для корректного сравнения
 									currentDate.setHours(0, 0, 0, 0)
 									scheduleDateObj.setHours(0, 0, 0, 0)
 									
-									// Показываем кнопку удаления только для текущей даты или будущих дат
 									if (scheduleDateObj >= currentDate) {
 										return (
 											<div style={{ marginTop: '12px', textAlign: 'center' }}>
@@ -854,7 +1052,28 @@ const SchedulePage = ({ userData, worker, onBack }) => {
 							</label>
 							<select
 								value={newSchedule.zone_id || ''}
-								onChange={(e) => setNewSchedule({...newSchedule, zone_id: e.target.value ? parseInt(e.target.value) : null})}
+								onChange={(e) => {
+									const selectedZoneId = e.target.value ? parseInt(e.target.value) : null;
+									const selectedZone = zones.find(zone => zone.id === selectedZoneId);
+									
+									let newStartTime = '09:00';
+									let newEndTime = '18:00';
+									
+									if (selectedZone && selectedZone.working_hours) {
+										const timeMatch = selectedZone.working_hours.match(/(\d{1,2}:\d{2})\s*-\s*(\d{1,2}:\d{2})/);
+										if (timeMatch) {
+											newStartTime = timeMatch[1];
+											newEndTime = timeMatch[2];
+										}
+									}
+									
+									setNewSchedule({
+										...newSchedule, 
+										zone_id: selectedZoneId,
+										planned_start_time: newStartTime,
+										planned_end_time: newEndTime
+									});
+								}}
 								style={{
 									width: '100%',
 									padding: '8px',
@@ -862,89 +1081,87 @@ const SchedulePage = ({ userData, worker, onBack }) => {
 									borderRadius: '5px',
 								}}
 							>
-							<option value="">Выберите зону</option>
+								<option value="">Выберите зону</option>
 								{zones.map(zone => (
 									<option key={zone.id} value={zone.id}>
-										{zone.name} (#{zone.id})
+										{zone.name} (#{zone.id}) - {zone.working_hours}
 									</option>
 								))}
 							</select>
 						</div>
 
 						<div style={{ marginBottom: '15px' }}>
-													<label
-														style={{
-															display: 'block',
-															marginBottom: '5px',
-															fontWeight: 'bold',
-															fontSize: '14px',
-														}}
-													>
-														Даты:
-													</label>
-													<input
-														type="date"
-														multiple // Добавляем возможность выбора нескольких дат
-														value=""
-														onChange={(e) => {
-															// Добавляем выбранную дату к существующему массиву
-															const newDate = e.target.value;
-															if (newDate && !newSchedule.dates.includes(newDate)) {
-																setNewSchedule({
-																	...newSchedule,
-																	dates: [...newSchedule.dates, newDate]
-																});
-															}
-														}}
-														style={{
-															width: '100%',
-															padding: '8px',
-															border: '1px solid #ddd',
-															borderRadius: '5px',
-														}}
-													/>
-													{/* Отображение выбранных дат с возможностью удаления */}
-													{newSchedule.dates.length > 0 && (
-														<div style={{ marginTop: '10px' }}>
-															{newSchedule.dates.map((date, index) => (
-																<span
-																	key={index}
-																	style={{
-																		display: 'inline-block',
-																		padding: '4px 8px',
-																		margin: '2px',
-																		backgroundColor: '#3b82f6',
-																		color: 'white',
-																		borderRadius: '12px',
-																		fontSize: '12px'
-																	}}
-																>
-																	{date}
-																	<button
-																		onClick={() => {
-																			const newDates = [...newSchedule.dates];
-																			newDates.splice(index, 1);
-																			setNewSchedule({
-																				...newSchedule,
-																				dates: newDates
-																			});
-																		}}
-																		style={{
-																			marginLeft: '5px',
-																			background: 'none',
-																			border: 'none',
-																			color: 'white',
-																			cursor: 'pointer',
-																			fontSize: '14px'
-																		}}
-																	>
-																		×
-																	</button>
-																</span>
-															))}
-														</div>
-													)}
-												</div>
+							<label
+								style={{
+									display: 'block',
+									marginBottom: '5px',
+									fontWeight: 'bold',
+									fontSize: '14px',
+								}}
+							>
+								Даты:
+							</label>
+							<input
+								type="date"
+								multiple
+								value=""
+								onChange={(e) => {
+									const newDate = e.target.value;
+									if (newDate && !newSchedule.dates.includes(newDate)) {
+										setNewSchedule({
+											...newSchedule,
+											dates: [...newSchedule.dates, newDate]
+										});
+									}
+								}}
+								style={{
+									width: '100%',
+									padding: '8px',
+									border: '1px solid #ddd',
+									borderRadius: '5px',
+								}}
+							/>
+							{newSchedule.dates.length > 0 && (
+								<div style={{ marginTop: '10px' }}>
+									{newSchedule.dates.map((date, index) => (
+										<span
+											key={index}
+											style={{
+												display: 'inline-block',
+												padding: '4px 8px',
+												margin: '2px',
+												backgroundColor: '#3b82f6',
+												color: 'white',
+												borderRadius: '12px',
+												fontSize: '12px'
+											}}
+										>
+											{date}
+											<button
+												onClick={() => {
+													const newDates = [...newSchedule.dates];
+													newDates.splice(index, 1);
+													setNewSchedule({
+														...newSchedule,
+														dates: newDates
+													});
+												}}
+												style={{
+													marginLeft: '5px',
+													background: 'none',
+													border: 'none',
+													color: 'white',
+													cursor: 'pointer',
+													fontSize: '14px'
+												}}
+											>
+												×
+											</button>
+										</span>
+									))}
+								</div>
+							)}
+						</div>
 
 						<div style={{ marginBottom: '15px' }}>
 							<label
@@ -1013,12 +1230,12 @@ const SchedulePage = ({ userData, worker, onBack }) => {
 								onClick={() => {
 									setShowAddModal(false)
 									setNewSchedule({
-																			worker_id: worker.id,
-																			zone_id: null,
-																			dates: [],
-																			planned_start_time: '09:00',
-																			planned_end_time: '18:00'
-																		})
+										worker_id: worker.id,
+										zone_id: null,
+										dates: [],
+										planned_start_time: '09:00',
+										planned_end_time: '18:00'
+									})
 								}}
 								style={{
 									padding: '10px 20px',

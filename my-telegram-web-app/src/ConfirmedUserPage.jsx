@@ -8,6 +8,7 @@ import { useClientMQTT } from './ClientMQTT'
 import UserSalaryPage from './UserSalaryPage';
 import Webcam from 'react-webcam';
 
+
 // Компонент камеры для смен
 const ShiftCameraModal = ({ isOpen, onClose, onPhotoTaken, scheduleId, isStart }) => {
   const webcamRef = useRef(null);
@@ -221,7 +222,12 @@ const ShiftCameraModal = ({ isOpen, onClose, onPhotoTaken, scheduleId, isStart }
           color: 'white',
           padding: '15px',
           textAlign: 'center',
-          backgroundColor: 'rgba(0,0,0,0.8)'
+          backgroundColor: 'rgba(0,0,0,0.8)',
+          position: 'absolute',
+          top: '70px',
+          left: 0,
+          right: 0,
+          zIndex: 1002
         }}>
           {error}
           {cameraError && (
@@ -248,89 +254,96 @@ const ShiftCameraModal = ({ isOpen, onClose, onPhotoTaken, scheduleId, isStart }
       <div style={{
         position: 'absolute',
         bottom: '40px',
-        left: '50%',
-        transform: 'translateX(-50%)',
+        width: '100%',
         display: 'flex',
-        flexDirection: 'column',
+        justifyContent: 'center',
         alignItems: 'center',
-        gap: '15px'
+        zIndex: 1001,
+        padding: '0 20px',
+        boxSizing: 'border-box'
       }}>
-        {/* Кнопка съемки */}
-        <button
-          onClick={handleTakePhoto}
-          style={{
-            width: '70px',
-            height: '70px',
-            borderRadius: '50%',
-            backgroundColor: 'white',
-            border: '4px solid #333',
-            cursor: 'pointer',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            fontSize: '24px'
-          }}
-        >
-          📸
-        </button>
-
-        {/* Кнопка отправки всех фото */}
+        {/* Кнопка отправки - СЛЕВА (компактная) */}
         {capturedPhotos.length > 0 && (
           <button
             onClick={handleSendAllPhotos}
             style={{
-              padding: '10px 20px',
+              position: 'absolute',
+              left: '20px', // Прижато к левому краю
+              bottom: '0',
+              padding: '10px 15px', // Уменьшил padding
               backgroundColor: '#10b981',
               color: 'white',
               border: 'none',
-              borderRadius: '20px',
+              borderRadius: '20px', // Сделал менее круглой
               cursor: 'pointer',
-              fontSize: '16px',
-              fontWeight: 'bold'
+              fontSize: '14px', // Уменьшил шрифт
+              fontWeight: 'bold',
+              whiteSpace: 'nowrap',
+              boxShadow: '0 4px 12px rgba(0, 0, 0, 0.3)',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '6px', // Уменьшил расстояние между иконкой и текстом
+              zIndex: 1002,
+              maxWidth: '140px' // Ограничил максимальную ширину
             }}
           >
-            ✅ Отправить все фото ({capturedPhotos.length})
+            <span style={{ fontSize: '16px' }}>✅</span>
+            <span>Отправить ({capturedPhotos.length})</span>
           </button>
         )}
 
-        {/* Подсказка */}
-        <div style={{ color: 'white', fontSize: '14px', textAlign: 'center' }}>
-          {capturedPhotos.length === 0
-            ? 'Нажмите для съемки'
-            : 'Сделайте еще фото или отправьте все'}
+        {/* Кнопка съемки - ВСЕГДА ПО ЦЕНТРУ */}
+        <div style={{
+          display: 'flex',
+          justifyContent: 'center',
+          alignItems: 'center'
+        }}>
+          <button
+            onClick={handleTakePhoto}
+            style={{
+              width: '70px',
+              height: '70px',
+              borderRadius: '50%',
+              backgroundColor: 'white',
+              border: '4px solid #333',
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              fontSize: '24px',
+              boxShadow: '0 4px 12px rgba(0, 0, 0, 0.3)'
+            }}
+          >
+            📸
+          </button>
         </div>
       </div>
 
-      {/* Превью сделанных фото */}
+      {/* Превью сделанных фото - вертикальный список справа */}
       {capturedPhotos.length > 0 && (
         <div style={{
           position: 'absolute',
-          bottom: '150px',
-          left: '20px',
+          right: '20px',
+          bottom: '150px', // Начинаем от кнопок
           display: 'flex',
+          flexDirection: 'column-reverse', // Новые фото добавляются сверху
           gap: '10px',
-          maxWidth: 'calc(100% - 40px)',
-          overflowX: 'auto',
+          maxHeight: 'calc(100vh - 300px)', // Ограничиваем высоту
+          overflowY: 'auto', // Вертикальная прокрутка если много фото
           padding: '10px',
-          backgroundColor: 'rgba(0,0,0,0.5)',
-          borderRadius: '10px'
+          backgroundColor: 'rgba(0,0,0,0.7)',
+          borderRadius: '10px',
+          zIndex: 1001,
+          alignItems: 'flex-end' // Выравнивание по правому краю
         }}>
           {capturedPhotos.map((photo, index) => (
-            <div key={index} style={{ position: 'relative' }}>
-              <img
-                src={`data:image/jpeg;base64,${photo}`}
-                alt={`Фото ${index + 1}`}
-                style={{
-                  width: '60px',
-                  height: '60px',
-                  borderRadius: '5px',
-                  objectFit: 'cover'
-                }}
-              />
+            <div key={index} style={{ 
+              position: 'relative',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '5px'
+            }}>
               <div style={{
-                position: 'absolute',
-                top: '-5px',
-                right: '-5px',
                 backgroundColor: '#3b82f6',
                 color: 'white',
                 borderRadius: '50%',
@@ -339,10 +352,21 @@ const ShiftCameraModal = ({ isOpen, onClose, onPhotoTaken, scheduleId, isStart }
                 fontSize: '12px',
                 display: 'flex',
                 alignItems: 'center',
-                justifyContent: 'center'
+                justifyContent: 'center',
+                flexShrink: 0
               }}>
-                {index + 1}
+                {capturedPhotos.length - index} {/* Обратная нумерация */}
               </div>
+              <img
+                src={`data:image/jpeg;base64,${photo}`}
+                alt={`Фото ${capturedPhotos.length - index}`}
+                style={{
+                  width: '60px',
+                  height: '60px',
+                  borderRadius: '5px',
+                  objectFit: 'cover'
+                }}
+              />
             </div>
           ))}
         </div>

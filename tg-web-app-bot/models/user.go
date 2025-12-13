@@ -64,6 +64,7 @@ type Auto_cheklst struct {
     ID          int64      `json:"id"`
     ZoneID      int64      `json:"zone_id"`
     Description string     `json:"description"`
+    Important   bool       `json:"important"`
 }
 
 type Schedule struct {
@@ -79,4 +80,32 @@ type Schedule struct {
     PhotoStart       *string `json:"photo_start,omitempty" db:"photo_start"`
     PhotoEnd         *string `json:"photo_end,omitempty" db:"photo_end"`
     Price        float64 `json:"price"`
+}
+
+type FineTemplate struct {
+    ID    int64   `json:"id" db:"id"`
+    Name  string  `json:"name" db:"name"`
+    Price float64 `json:"price" db:"price"`
+}
+
+type Fine struct {
+    ID        int64     `json:"id" db:"id"`
+    Name      string    `json:"name" db:"name"`
+    Price     float64   `json:"price" db:"price"`
+    UserID    int64     `json:"user_id" db:"user_id"`
+    CreatedAt time.Time `json:"created_at" db:"created_at"`
+}
+
+type BonusTemplate struct {
+    ID    int64   `json:"id" db:"id"`
+    Name  string  `json:"name" db:"name"`
+    Price float64 `json:"price" db:"price"`
+}
+
+type Bonus struct {
+    ID        int64     `json:"id" db:"id"`
+    Name      string    `json:"name" db:"name"`
+    Price     float64   `json:"price" db:"price"`
+    UserID    int64     `json:"user_id" db:"user_id"`
+    CreatedAt time.Time `json:"created_at" db:"created_at"`
 }

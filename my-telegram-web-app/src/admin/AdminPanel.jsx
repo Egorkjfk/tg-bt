@@ -4,16 +4,20 @@ import UsersTab from './UsersTab'
 import ZonesTab from './ZonesTab'
 import ZoneEditPage from './ZoneEditPage'
 import SchedulePage from './SchedulePage'
+import AllWorkersSchedulePage from './AllWorkersSchedulePage'
 import ChecklistsPage from './ChecklistsPage'
 import AutoChecklistsPage from './AutoChecklistsPage'
 import AdminSalaryPage from './AdminSalaryPage'
+import BonusesFinesTab from './BonusesFinesTab'
 import { AdminMQTTContext } from '../AdminMQTT'
 
 const AdminPanel = ({ userData, onOpenChecklists, onOpenChecklistsFromZones, initialActiveTab = 'users' }) => {
 	const [activeTab, setActiveTab] = useState(initialActiveTab)
 	const [editingZoneId, setEditingZoneId] = useState(null)
 	const [scheduleUser, setScheduleUser] = useState(null)
+	const [showAllSchedules, setShowAllSchedules] = useState(false)
 	const [autoChecklistZoneId, setAutoChecklistZoneId] = useState(null)
+	const [autoChecklistZoneName, setAutoChecklistZoneName] = useState('')
   const [shownNotifications, setShownNotifications] = useState(() => {
     const saved = localStorage.getItem('adminPanelShownNotifications');
     return saved ? new Set(JSON.parse(saved)) : new Set();
@@ -58,16 +62,14 @@ const AdminPanel = ({ userData, onOpenChecklists, onOpenChecklistsFromZones, ini
  }
 
  // Функция для открытия страницы авточеклистов
- const handleOpenAutoChecklists = (zoneId) => {
+ const handleOpenAutoChecklists = (zoneId, zoneName) => {
   setAutoChecklistZoneId(zoneId)
+  setAutoChecklistZoneName(zoneName || `Зона #${zoneId}`)
  }
-
-
 
  // Функция для возврата к списку зон
  const handleBackToZones = () => {
   setEditingZoneId(null)
- // Обновляем список зон
   setActiveTab('zones')
  }
 
@@ -87,25 +89,38 @@ const AdminPanel = ({ userData, onOpenChecklists, onOpenChecklistsFromZones, ini
   return (
     <AutoChecklistsPage
       zoneId={autoChecklistZoneId}
+      zoneName={autoChecklistZoneName}
       userData={userData}
-      onBack={() => setAutoChecklistZoneId(null)}
+      onBack={() => {
+        setAutoChecklistZoneId(null)
+        setAutoChecklistZoneName('')
+      }}
     />
   )
  }
 
  // Если выбран пользователь для просмотра расписания, показываем страницу расписания
  if (scheduleUser) {
-  return (
-  	<SchedulePage
-  		userData={userData}
-  		worker={scheduleUser}
-  		onBack={() => setScheduleUser(null)}
-  	/>
-  )
+ 	return (
+ 		<SchedulePage
+ 			userData={userData}
+ 			worker={scheduleUser}
+ 			onBack={() => setScheduleUser(null)}
+ 		/>
+ 	)
  }
 
-	return (
-		
+// Если выбрано отображение общего расписания, показываем страницу общего расписания
+ if (showAllSchedules) {
+ 	return (
+ 		<AllWorkersSchedulePage
+ 			userData={userData}
+ 			onBack={() => setShowAllSchedules(false)}
+ 		/>
+ 	)
+ }
+
+ return (
 		<div
 			style={{
 				padding: '0px',
@@ -145,7 +160,8 @@ const AdminPanel = ({ userData, onOpenChecklists, onOpenChecklistsFromZones, ini
 			<TabSwitcher activeTab={activeTab} setActiveTab={setActiveTab} />
 
 			{/* Контент вкладок */}
-			{activeTab === 'users' && <UsersTab userData={userData} openSchedulePage={setScheduleUser} />}
+			{activeTab === 'users' && <UsersTab userData={userData} openSchedulePage={setScheduleUser} onShowAllSchedules={() => setShowAllSchedules(true)} />}
+			{activeTab === 'all-schedules' && <AllWorkersSchedulePage userData={userData} onBack={() => setActiveTab('users')} />}
 			{activeTab === 'zones' && (
 				<ZonesTab
 					userData={userData}
@@ -165,6 +181,7 @@ const AdminPanel = ({ userData, onOpenChecklists, onOpenChecklistsFromZones, ini
 				/>
 			)}
 			{activeTab === 'salary' && <AdminSalaryPage userData={userData} />}
+			{activeTab === 'bonuses-fines' && <BonusesFinesTab userData={userData} />}
 		</div>
 	)
 }

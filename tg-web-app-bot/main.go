@@ -8,7 +8,6 @@ import (
 	"tg-web-app-bot/handlers"
 	"tg-web-app-bot/repository"
 	"tg-web-app-bot/services"
-	"golang.org/x/net/proxy"
 	"time"
 
 	"github.com/joho/godotenv"
@@ -40,22 +39,35 @@ func main() {
 	defer db.Close()
 
 	// Настраиваем бота С ПРОКСИ только для Telegram API
-dialer, err := proxy.SOCKS5("tcp", "localhost:7799", nil, proxy.Direct)
-if err != nil {
-    log.Fatal("❌ Ошибка создания SOCKS5 прокси:", err)
-}
+// dialer, err := proxy.SOCKS5("tcp", "185.54.178.193:1080", nil, proxy.Direct)
+// if err != nil {
+//     log.Fatal("❌ Ошибка создания SOCKS5 прокси:", err)
+// }
 
-httpClient := &http.Client{
-    Transport: &http.Transport{
-        Dial: dialer.Dial,
-    },
-    Timeout: 30 * time.Second,
-}
+// httpClient := &http.Client{
+//     Transport: &http.Transport{
+//         Dial: dialer.Dial,
+//     },
+//     Timeout: 30 * time.Second,
+// }
+//  dialSocksProxy := socks.Dial("socks4://185.54.178.193:1080?timeout=30s")
+
+//     // 2. Настраиваем HTTP-транспорт
+//     tr := &http.Transport{
+//         Dial: dialSocksProxy,
+//     }
+
+//     // 3. Создаем HTTP-клиент
+//     httpClient := &http.Client{
+//         Transport: tr,
+//         Timeout:   30 * time.Second,
+//     }
+
 
 pref := tele.Settings{
     Token:  cfg.TelegramBotToken,
     Poller: &tele.LongPoller{Timeout: 10 * time.Second},
-    Client: httpClient, 
+    //Client: httpClient, 
 }
 
 b, err := tele.NewBot(pref)
@@ -78,6 +90,9 @@ if err != nil {
 	// Инициализируем обработчики
 	botHandlers := handlers.NewBotHandlers(userService, cfg.WebAppURL)
 	httpHandlers := handlers.NewHTTPHandlers(userService)
+	// Инициализируем планировщик задач
+	taskScheduler := services.NewTaskScheduler(userService)
+	taskScheduler.StartAllTasks()
 
 	// Настраиваем HTTP маршруты с использованием стандартной цепочки middleware
 	http.Handle("/api/update-phone", handlers.StandardMiddlewareChain(httpHandlers.HandlePhoneUpdate))
@@ -87,14 +102,17 @@ if err != nil {
 	http.Handle("/api/create-zone", handlers.StandardMiddlewareChain(httpHandlers.HandleCreateZone))
 	http.Handle("/api/update-zone", handlers.StandardMiddlewareChain(httpHandlers.HandleUpdateZone))
 		http.Handle("/api/drop-zone", handlers.StandardMiddlewareChain(httpHandlers.HandleDropZone))
-
+http.Handle("/api/delete-user", handlers.StandardMiddlewareChain(httpHandlers.HandleDeleteUser))
 
 	http.Handle("/api/get-checklists", handlers.StandardMiddlewareChain(httpHandlers.HandleGetChecklists))
-    http.Handle("/api/update-checklist", handlers.StandardMiddlewareChain(httpHandlers.HandleUpdateChecklist))
+    // http.Handle("/api/update-checklist", handlers.StandardMiddlewareChain(httpHandlers.HandleUpdateChecklist))
     http.Handle("/api/create-checklist", handlers.StandardMiddlewareChain(httpHandlers.HandleCreateChecklist))
+http.Handle("/api/update-checklist-description", handlers.StandardMiddlewareChain(httpHandlers.HandleUpdateChecklistDescription))
+http.Handle("/api/delete-checklist", handlers.StandardMiddlewareChain(httpHandlers.HandleDeleteChecklist))
 	http.Handle("/api/create-auto-checklist", handlers.StandardMiddlewareChain(httpHandlers.HandleCreateAutoChecklist))
 		http.Handle("/api/delete-auto-checklist", handlers.StandardMiddlewareChain(httpHandlers.HandleDeleteAutoChecklist))
-			http.Handle("/api/get-auto-checklist", handlers.StandardMiddlewareChain(httpHandlers.HandleGetAutoChecklists))
+		http.Handle("/api/get-auto-checklist", handlers.StandardMiddlewareChain(httpHandlers.HandleGetAutoChecklists))
+		http.Handle("/api/update-auto-checklist", handlers.StandardMiddlewareChain(httpHandlers.HandleUpdateAutoChecklist))
 
 
 
@@ -115,78 +133,41 @@ http.Handle("/api/get-all-salaries", handlers.StandardMiddlewareChain(httpHandle
 	http.Handle("/api/get-worker-checklists", handlers.StandardMiddlewareChain(httpHandlers.HandleGetWorkerChecklists))
 	
 	// Добавляем эндпоинт для загрузки фото чеклиста
-	http.Handle("/api/upload-checklist-photo", handlers.StandardMiddlewareChain(httpHandlers.HandleUploadChecklistPhoto))
-	
+	// http.Handle("/api/upload-checklist-photo", handlers.StandardMiddlewareChain(httpHandlers.HandleUploadChecklistPhoto))
+http.Handle("/api/add-checklist-photo", handlers.StandardMiddlewareChain(httpHandlers.HandleAddChecklistPhoto))
+	http.Handle("/api/update-checklist-status", handlers.StandardMiddlewareChain(httpHandlers.HandleUpdateChecklistStatus))
 	// Добавляем эндпоинт для получения текущей даты с сервера
 	http.Handle("/api/get-current-date", handlers.StandardMiddlewareChain(httpHandlers.HandleGetCurrentDate))
+
+	// Шаблоны штрафов
+http.Handle("/api/get-all-fine-templates", handlers.StandardMiddlewareChain(httpHandlers.HandleGetAllFineTemplates))
+http.Handle("/api/create-fine-template", handlers.StandardMiddlewareChain(httpHandlers.HandleCreateFineTemplate))
+http.Handle("/api/delete-fine-template", handlers.StandardMiddlewareChain(httpHandlers.HandleDeleteFineTemplate))
+
+// Шаблоны премий
+http.Handle("/api/get-all-bonus-templates", handlers.StandardMiddlewareChain(httpHandlers.HandleGetAllBonusTemplates))
+http.Handle("/api/create-bonus-template", handlers.StandardMiddlewareChain(httpHandlers.HandleCreateBonusTemplate))
+http.Handle("/api/delete-bonus-template", handlers.StandardMiddlewareChain(httpHandlers.HandleDeleteBonusTemplate))
+
+// Премии пользователей
+http.Handle("/api/get-user-bonuses", handlers.StandardMiddlewareChain(httpHandlers.HandleGetUserBonuses))
+http.Handle("/api/create-bonus", handlers.StandardMiddlewareChain(httpHandlers.HandleCreateBonus))
+http.Handle("/api/delete-bonus", handlers.StandardMiddlewareChain(httpHandlers.HandleDeleteBonus))
+
+// Штрафы пользователей
+http.Handle("/api/get-user-fines", handlers.StandardMiddlewareChain(httpHandlers.HandleGetUserFines))
+http.Handle("/api/create-fine", handlers.StandardMiddlewareChain(httpHandlers.HandleCreateFine))
+http.Handle("/api/delete-fine", handlers.StandardMiddlewareChain(httpHandlers.HandleDeleteFine))
+
+
+
+
 	
 
 	http.Handle("/list/", http.StripPrefix("/list/", http.FileServer(http.Dir("./public/list/"))))
 	 	http.Handle("/zones/", http.StripPrefix("/zones/", http.FileServer(http.Dir("./public/zones/"))))
 	 	http.Handle("/smena/", http.StripPrefix("/smena/", http.FileServer(http.Dir("./public/smena/"))))
 	 	
-	 	// Запускаем задачу очистки старых чек-листов в отдельной горутине
-	 	go func() {
-	 	// Выполняем очистку при запуске
-	 		err := userService.DeleteOldChecklists()
-	 		if err != nil {
-	 			log.Printf("⚠️ Ошибка при первоначальной очистке старых чек-листов: %v", err)
-	 		} else {
-	 			log.Printf("✅ Первоначальная очистка старых чек-листов выполнена")
-	 		}
-	 		
-	 		// Запускаем ежедневную очистку
-	 	for {
-	 			// Вычисляем время до следующего запуска (в полночь)
-	 			now := time.Now()
-	 			nextRun := time.Date(now.Year(), now.Month(), now.Day()+1, 0, 0, 0, 0, now.Location())
-	 			duration := nextRun.Sub(now)
-	 			
-	 			log.Printf("🕒 Следующая очистка старых чек-листов запланирована на: %v (через %v)", nextRun, duration)
-	 			
-	 			// Ждем до следующего запуска
-	 			time.Sleep(duration)
-	 			
-	 			// Выполняем очистку
-	 			err := userService.DeleteOldChecklists()
-	 			if err != nil {
-	 				log.Printf("⚠️ Ошибка при очистке старых чек-листов: %v", err)
-	 			} else {
-	 				log.Printf("✅ Ежедневная очистка старых чек-листов выполнена")
-	 			}
-	 	}
-	}()
-	// Запускаем задачу копирования автосписков каждый час
-	go func() {
-	// Выполняем копирование при запуске
-		err := userService.ExecuteHourlyChecklistsCopy()
-		if err != nil {
-			log.Printf("⚠️ Ошибка при первоначальном копировании автосписков: %v", err)
-	} else {
-			log.Printf("✅ Первоначальное копирование автосписков выполнено")
-		}
-		
-		// Запускаем ежечасное копирование
-		for {
-			// Вычисляем время до следующего запуска (в следующий час в 5 минут)
-			now := time.Now()
-			nextRun := time.Date(now.Year(), now.Month(), now.Day(), now.Hour()+1, 5, 0, 0, now.Location())
-			duration := nextRun.Sub(now)
-			
-			log.Printf("🕒 Следующее копирование автосписков запланировано на: %v (через %v)", nextRun, duration)
-			
-			// Ждем до следующего запуска
-			time.Sleep(duration)
-			
-			// Выполняем копирование
-			err := userService.ExecuteHourlyChecklistsCopy()
-			if err != nil {
-				log.Printf("⚠️ Ошибка при копировании автосписков: %v", err)
-			} else {
-				log.Printf("✅ Ежечасное копирование автосписков выполнено")
-			}
-		}
-	}()
 	 	
 	
 	// Запускаем HTTP сервер в отдельной горутине

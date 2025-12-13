@@ -210,18 +210,18 @@ const ZonesTab = ({ userData, onOpenChecklists, onEditZone, onOpenChecklistsFrom
 									✏️ Изменить
 								</button>
 								<button
-									onClick={() => onOpenAutoChecklists ? onOpenAutoChecklists(zone.id) : alert('Функция открытия авточек-листов не реализована')}
-									style={{
-										padding: '5px 10px',
-										backgroundColor: '#38a169',
-										color: 'white',
-										border: 'none',
-										borderRadius: '5px',
-										cursor: 'pointer',
-									}}
-								>
-									🤖 Авточек-лист
-								</button>
+  onClick={() => onOpenAutoChecklists ? onOpenAutoChecklists(zone.id, zone.name) : alert('Функция открытия авточек-листов не реализована')}
+  style={{
+    padding: '5px 10px',
+    backgroundColor: '#38a169',
+    color: 'white',
+    border: 'none',
+    borderRadius: '5px',
+    cursor: 'pointer',
+  }}
+>
+  🤖 Авточек-лист
+</button>
 								<button
 									onClick={() => onOpenChecklistsFromZones ? onOpenChecklistsFromZones(zone.id) : onOpenChecklists(zone.id)}
 									style={{
