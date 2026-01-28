@@ -16,17 +16,41 @@ const BonusFineForm = ({
   const [templates, setTemplates] = useState([]);
   const [loading, setLoading] = useState(false);
   const [useTemplate, setUseTemplate] = useState(false);
+  const [selectedDate, setSelectedDate] = useState('');
+const [currentDate, setCurrentDate] = useState('');
 
   // Загрузка шаблонов при открытии формы
   useEffect(() => {
-    if (isOpen) {
-      fetchTemplates();
-    } else {
-      // Сброс формы при закрытии
-      setFormData({ name: '', price: '' });
-      setUseTemplate(false);
+  if (isOpen) {
+    fetchTemplates();
+    fetchCurrentDate();
+  } else {
+    // Сброс формы при закрытии
+    setFormData({ name: '', price: '' });
+    setUseTemplate(false);
+    setSelectedDate('');
+    setCurrentDate('');
+  }
+}, [isOpen]);
+
+const fetchCurrentDate = async () => {
+  try {
+    const response = await fetch(API_ENDPOINTS.GET_CURRENT_DATE);
+    if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+    
+    const result = await response.json();
+    if (result.status === 'success') {
+      setCurrentDate(result.date);
+      setSelectedDate(result.date); // Устанавливаем текущую дату по умолчанию
     }
-  }, [isOpen]);
+  } catch (err) {
+    console.error('❌ Ошибка загрузки текущей даты:', err);
+    // В случае ошибки используем текущую дату из JS
+    const today = new Date().toISOString().split('T')[0];
+    setCurrentDate(today);
+    setSelectedDate(today);
+  }
+};
 
   const fetchTemplates = async () => {
     try {
@@ -87,12 +111,20 @@ const BonusFineForm = ({
         ? API_ENDPOINTS.CREATE_BONUS 
         : API_ENDPOINTS.CREATE_FINE;
       
+      // Создаем базовый объект запроса
+      const bonusOrFineData = {
+        name: formData.name,
+        price: parseFloat(formData.price),
+        user_id: user.id
+      };
+
+      // Добавляем дату created_at только если она отличается от текущей
+      if (selectedDate && selectedDate !== currentDate) {
+        bonusOrFineData.created_at = selectedDate + "T00:00:00Z"; // Формат ISO
+      }
+
       const requestData = {
-        [type]: {
-          name: formData.name,
-          price: parseFloat(formData.price),
-          user_id: user.id
-        },
+        [type]: bonusOrFineData,
         admin_id: userData.id,
         telegram_id: userData.telegram_id,
       };
@@ -270,6 +302,40 @@ const BonusFineForm = ({
               fontSize: '14px',
             }}
           />
+          <div style={{ marginBottom: '15px' }}>
+            <label style={{ display: 'block', marginBottom: '5px', fontWeight: 'bold' }}>
+              📅 Дата ({currentDate === selectedDate ? 'Сегодня' : 'Выбрана другая дата'}):
+            </label>
+            <input
+              type="date"
+              value={selectedDate}
+              onChange={(e) => setSelectedDate(e.target.value)}
+              style={{
+                width: '100%',
+                padding: '8px',
+                border: '1px solid #ddd',
+                borderRadius: '8px',
+                fontSize: '14px',
+              }}
+            />
+            {selectedDate !== currentDate && (
+              <button
+                onClick={() => setSelectedDate(currentDate)}
+                style={{
+                  marginTop: '5px',
+                  padding: '5px 10px',
+                  backgroundColor: '#a0aec0',
+                  color: 'white',
+                  border: 'none',
+                  borderRadius: '5px',
+                  cursor: 'pointer',
+                  fontSize: '12px',
+                }}
+              >
+                ↺ Сбросить на сегодня
+              </button>
+            )}
+          </div>
         </div>
 
 

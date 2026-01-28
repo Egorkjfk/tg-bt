@@ -248,17 +248,6 @@ const SchedulePage = ({ userData, worker, onBack }) => {
 		const confirmDelete = window.confirm('Вы уверены, что хотите удалить это расписание?')
 		if (!confirmDelete) return
 		
-		const currentDate = new Date()
-		const scheduleDateObj = new Date(scheduleDate.split('T')[0])
-		
-		currentDate.setHours(0, 0, 0, 0)
-		scheduleDateObj.setHours(0, 0, 0, 0)
-		
-		if (scheduleDateObj < currentDate) {
-			alert('Невозможно удалить расписание с прошедшей датой')
-			return
-		}
-		
 		try {
 			const response = await fetch(`${API_URL}/delete-schedule`, {
 				method: 'POST',
@@ -973,37 +962,24 @@ const SchedulePage = ({ userData, worker, onBack }) => {
 	</div>
 </div>
 								
-								{/* Кнопка удаления расписания */}
-								{(() => {
-									const currentDate = new Date()
-									const scheduleDateObj = new Date(schedule.date.split('T')[0])
-									
-									currentDate.setHours(0, 0, 0, 0)
-									scheduleDateObj.setHours(0, 0, 0, 0)
-									
-									if (scheduleDateObj >= currentDate) {
-										return (
-											<div style={{ marginTop: '12px', textAlign: 'center' }}>
-												<button
-													onClick={() => handleDeleteSchedule(schedule.id, schedule.date)}
-													style={{
-														padding: '6px 12px',
-														backgroundColor: '#e53e3e',
-														color: 'white',
-														border: 'none',
-														borderRadius: '6px',
-														cursor: 'pointer',
-														fontSize: '12px',
-														fontWeight: 'bold',
-													}}
-												>
-													🗑️ Удалить
-												</button>
-											</div>
-										)
-									}
-									return null
-								})()}
+									{/* Кнопка удаления расписания */}
+									<div style={{ marginTop: '12px', textAlign: 'center' }}>
+										<button
+											onClick={() => handleDeleteSchedule(schedule.id)}
+											style={{
+												padding: '6px 12px',
+												backgroundColor: '#e53e3e',
+												color: 'white',
+												border: 'none',
+												borderRadius: '6px',
+												cursor: 'pointer',
+												fontSize: '12px',
+												fontWeight: 'bold',
+											}}
+										>
+											🗑️ Удалить
+										</button>
+									</div>
 							</div>
 						))}
 					</div>

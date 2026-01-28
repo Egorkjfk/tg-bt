@@ -7,13 +7,16 @@ const UserSalaryPage = ({ userData, fullWidth = false }) => {
     const [zones, setZones] = useState([]);
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState(null);
-    const [selectedMonth, setSelectedMonth] = useState('');
+   const [startDate, setStartDate] = useState('');
+    const [endDate, setEndDate] = useState('');
 
-    // Получаем текущий месяц в формате YYYY-MM
     useEffect(() => {
         const now = new Date();
-        const currentMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
-        setSelectedMonth(currentMonth);
+        const firstDay = new Date(now.getFullYear(), now.getMonth(), 1);
+        const lastDay = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+        
+        setStartDate(firstDay.toISOString().split('T')[0]);
+        setEndDate(lastDay.toISOString().split('T')[0]);
     }, []);
 
     // Загрузка списка зон
@@ -46,21 +49,23 @@ const UserSalaryPage = ({ userData, fullWidth = false }) => {
     }, []);
 
     // Загрузка данных о зарплате
-    const fetchSalaryData = async (month) => {
-        try {
-            setLoading(true);
-            setError(null);
+    const fetchSalaryData = async (startDate, endDate) => {
+    try {
+        setLoading(true);
+        setError(null);
 
-            const response = await fetch(`${API_URL}/calculate-salary`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    worker_id: userData.id,
-                    month: month,
-                    admin_id: userData.id,
-                    telegram_id: userData.telegram_id,
-                }),
-            });
+        const response = await fetch(`${API_URL}/calculate-salary`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                worker_id: userData.id,
+                start_date: startDate,
+                end_date: endDate,
+                admin_id: userData.id,
+                telegram_id: userData.telegram_id,
+            }),
+        });
+
 
             if (!response.ok) {
                 throw new Error(`HTTP error! status: ${response.status}`);
@@ -83,43 +88,36 @@ const UserSalaryPage = ({ userData, fullWidth = false }) => {
 
     // Загружаем данные при изменении месяца
     useEffect(() => {
-        if (selectedMonth && userData) {
-            fetchSalaryData(selectedMonth);
+        if (startDate && endDate && userData) {
+            fetchSalaryData(startDate, endDate);
         }
-    }, [selectedMonth, userData]);
-
-    // Навигация по месяцам
-    const handlePrevMonth = () => {
-        const [year, month] = selectedMonth.split('-').map(Number);
-        let newYear = year;
-        let newMonth = month - 1;
-        
-        if (newMonth === 0) {
-            newMonth = 12;
-            newYear = year - 1;
-        }
-        
-        setSelectedMonth(`${newYear}-${String(newMonth).padStart(2, '0')}`);
-    };
-
-    const handleNextMonth = () => {
-        const [year, month] = selectedMonth.split('-').map(Number);
-        let newYear = year;
-        let newMonth = month + 1;
-        
-        if (newMonth === 13) {
-            newMonth = 1;
-            newYear = year + 1;
-        }
-        
-        setSelectedMonth(`${newYear}-${String(newMonth).padStart(2, '0')}`);
-    };
+    }, [startDate, endDate, userData]);
 
     const handleCurrentMonth = () => {
         const now = new Date();
-        const currentMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
-        setSelectedMonth(currentMonth);
+        const firstDay = new Date(now.getFullYear(), now.getMonth(), 1);
+        const lastDay = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+        
+        const newStartDate = firstDay.toISOString().split('T')[0];
+        const newEndDate = lastDay.toISOString().split('T')[0];
+        
+        setStartDate(newStartDate);
+        setEndDate(newEndDate);
     };
+
+    const validateDates = () => {
+        if (!startDate || !endDate) return false;
+        const start = new Date(startDate);
+        const end = new Date(endDate);
+        return start <= end;
+    };
+
+    // И используй в useEffect:
+    useEffect(() => {
+        if (startDate && endDate && validateDates() && userData) {
+            fetchSalaryData(startDate, endDate);
+        }
+    }, [startDate, endDate, userData]);
 
     // Функция для получения названия зоны по ID
     const getZoneNameById = (zoneId) => {
@@ -146,17 +144,6 @@ const UserSalaryPage = ({ userData, fullWidth = false }) => {
         const timePart = timeString.split('T')[1];
         return timePart ? timePart.slice(0, 5) : '-';
     };
-
-    // Получение названия месяца
-    const getMonthName = (monthString) => {
-        const [year, month] = monthString.split('-').map(Number);
-        const months = [
-            'Январь', 'Февраль', 'Март', 'Апрель', 'Май', 'Июнь',
-            'Июль', 'Август', 'Сентябрь', 'Октябрь', 'Ноябрь', 'Декабрь'
-        ];
-        return `${months[month - 1]} ${year}`;
-    };
-
     if (!userData) {
         return (
             <div style={{ padding: '20px', textAlign: 'center' }}>
@@ -198,60 +185,56 @@ const UserSalaryPage = ({ userData, fullWidth = false }) => {
                 </h2>
             </div>
 
-            {/* Навигация по месяцам */}
+                        {/* Блок выбора дат */}
             <div
                 style={{
-                    display: 'flex',
-                    gap: '8px',
+                    display: 'grid',
+                    gridTemplateColumns: '1fr 1fr',
+                    gap: '15px',
                     marginBottom: '20px',
-                    alignItems: 'center',
                     padding: fullWidth ? '0 15px' : '0',
                 }}
             >
-                <button
-                    onClick={handlePrevMonth}
-                    style={{
-                        padding: '10px',
-                        backgroundColor: '#f3f4f6',
-                        color: '#374151',
-                        border: 'none',
-                        borderRadius: '10px',
-                        cursor: 'pointer',
-                        fontSize: '14px',
-                    }}
-                >
-                    ⬅️
-                </button>
-                
-                <div
-                    style={{
-                        flex: 1,
-                        textAlign: 'center',
-                        padding: '10px',
-                        backgroundColor: '#3b82f6',
-                        color: 'white',
-                        borderRadius: '10px',
-                        fontSize: '14px',
-                        fontWeight: '500',
-                    }}
-                >
-                    {selectedMonth ? getMonthName(selectedMonth) : 'Выбор месяца'}
+                <div>
+                    <div style={{ fontSize: '12px', color: '#6b7280', marginBottom: '4px' }}>
+                        Дата начала
+                    </div>
+                    <input
+                        type="date"
+                        value={startDate}
+                        onChange={(e) => {
+                            setStartDate(e.target.value);
+                            if (endDate) fetchSalaryData(e.target.value, endDate);
+                        }}
+                        style={{
+                            width: '100%',
+                            padding: '10px',
+                            border: '1px solid #d1d5db',
+                            borderRadius: '8px',
+                            fontSize: '14px',
+                        }}
+                    />
                 </div>
-                
-                <button
-                    onClick={handleNextMonth}
-                    style={{
-                        padding: '10px',
-                        backgroundColor: '#f3f4f6',
-                        color: '#374151',
-                        border: 'none',
-                        borderRadius: '10px',
-                        cursor: 'pointer',
-                        fontSize: '14px',
-                    }}
-                >
-                    ➡️
-                </button>
+                <div>
+                    <div style={{ fontSize: '12px', color: '#6b7280', marginBottom: '4px' }}>
+                        Дата окончания
+                    </div>
+                    <input
+                        type="date"
+                        value={endDate}
+                        onChange={(e) => {
+                            setEndDate(e.target.value);
+                            if (startDate) fetchSalaryData(startDate, e.target.value);
+                        }}
+                        style={{
+                            width: '100%',
+                            padding: '10px',
+                            border: '1px solid #d1d5db',
+                            borderRadius: '8px',
+                            fontSize: '14px',
+                        }}
+                    />
+                </div>
             </div>
 
             <button
@@ -293,7 +276,7 @@ const UserSalaryPage = ({ userData, fullWidth = false }) => {
                 >
                     <div>❌ {error}</div>
                     <button
-                        onClick={() => fetchSalaryData(selectedMonth)}
+                        onClick={() => fetchSalaryData(startDate, endDate)}
                         style={{
                             marginTop: '10px',
                             padding: '8px 16px',
@@ -650,7 +633,7 @@ const UserSalaryPage = ({ userData, fullWidth = false }) => {
                 >
                     <div>📭 Данные о зарплате не найдены</div>
                     <div style={{ fontSize: '14px', marginTop: '8px' }}>
-                        На выбранный месяц у вас нет данных о сменах
+                        На выбранный период ({startDate} - {endDate}) у вас нет данных о сменах
                     </div>
                 </div>
             )}

@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useContext } from 'react'
 import { API_URL } from '../constants/api'
 import { AdminMQTTContext } from '../AdminMQTT'
+import PhotoChecklistsPage from '../FotosChecklistPage' 
 
 
 const ChecklistsPage = ({ userData, zoneId, onBack, onBackToZones, fullWidth = false }) => {
@@ -17,10 +18,86 @@ const ChecklistsPage = ({ userData, zoneId, onBack, onBackToZones, fullWidth = f
     const saved = localStorage.getItem('adminShownNotifications');
     return saved ? new Set(JSON.parse(saved)) : new Set();
   });
+  const [selectedDate, setSelectedDate] = useState('');
+  const [currentDate, setCurrentDate] = useState('');
+  const [photoModal, setPhotoModal] = useState({
+    isOpen: false,
+    photos: [],
+    currentIndex: 0
+  });
+
+  const [viewMode, setViewMode] = useState('checklists');
+
+  // Функция для открытия модалки с фотографиями
+  const openPhotoModal = (checklist) => {
+    if (!checklist.photo) return;
+    
+    // Преобразуем строку с фото в массив
+    const photos = checklist.photo.includes(',') 
+      ? checklist.photo.split(',').map(p => p.trim())
+      : [checklist.photo];
+    
+    setPhotoModal({
+      isOpen: true,
+      photos: photos,
+      currentIndex: 0
+    });
+  };
+
+  // Функция для навигации по фотографиям
+  const navigatePhoto = (direction) => {
+    setPhotoModal(prev => {
+      let newIndex = prev.currentIndex + direction;
+      
+      // Циклическая навигация
+      if (newIndex < 0) newIndex = prev.photos.length - 1;
+      if (newIndex >= prev.photos.length) newIndex = 0;
+      
+      return {
+        ...prev,
+        currentIndex: newIndex
+      };
+    });
+  };
+
+  // Функция для закрытия модалки
+  const closePhotoModal = () => {
+    setPhotoModal({
+      isOpen: false,
+      photos: [],
+      currentIndex: 0
+    });
+  };
 
   useEffect(() => {
     localStorage.setItem('adminShownNotifications', JSON.stringify([...shownNotifications]));
   }, [shownNotifications]);
+
+  // Добавить в существующий useEffect или создать новый
+  useEffect(() => {
+    const fetchCurrentDate = async () => {
+      try {
+        const response = await fetch(`${API_URL}/get-current-date`);
+        if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+        
+        const result = await response.json();
+        if (result.status === 'success') {
+          setCurrentDate(result.date);
+          setSelectedDate(result.date);
+          // Также установить эту дату в фильтры
+          setFilters(prev => ({ ...prev, date: result.date }));
+        }
+      } catch (err) {
+        console.error('❌ Ошибка загрузки текущей даты:', err);
+        const today = new Date().toISOString().split('T')[0];
+        setCurrentDate(today);
+        setSelectedDate(today);
+        setFilters(prev => ({ ...prev, date: today }));
+      }
+    };
+    
+    fetchCurrentDate();
+  }, []);
 
   // Инициализация фильтров с учетом zoneId из пропсов
   const [filters, setFilters] = useState({
@@ -34,33 +111,33 @@ const ChecklistsPage = ({ userData, zoneId, onBack, onBackToZones, fullWidth = f
   const { connected, messages, publishToUser } = mqttContext || {}
 
   const safeShowAlert = (message) => {
-  const tg = window.Telegram?.WebApp;
-  if (!tg) {
-    console.log('Alert:', message);
-    return;
-  }
-  try {
-    // Используем showPopup вместо showAlert
-    if (typeof tg.showPopup === 'function') {
-      tg.showPopup({
-        title: 'Уведомление',
-        message: message,
-        buttons: [{ type: 'ok' }]
-      });
-    } else if (typeof tg.showAlert === 'function') {
-      // Для обратной совместимости
-      tg.showAlert(message);
-    } else {
+    const tg = window.Telegram?.WebApp;
+    if (!tg) {
       console.log('Alert:', message);
+      return;
     }
-  } catch (error) {
-    if (error.message.includes('Popup is already opened')) {
-      console.log('⚠️ Popup уже открыт, пропускаем уведомление');
-    } else {
-      console.log('Alert:', message);
+    try {
+      // Используем showPopup вместо showAlert
+      if (typeof tg.showPopup === 'function') {
+        tg.showPopup({
+          title: 'Уведомление',
+          message: message,
+          buttons: [{ type: 'ok' }]
+        });
+      } else if (typeof tg.showAlert === 'function') {
+        // Для обратной совместимости
+        tg.showAlert(message);
+      } else {
+        console.log('Alert:', message);
+      }
+    } catch (error) {
+      if (error.message.includes('Popup is already opened')) {
+        console.log('⚠️ Popup уже открыт, пропускаем уведомление');
+      } else {
+        console.log('Alert:', message);
+      }
     }
-  }
-};
+  };
 
   // Функция для обновления конкретного чек-листа
   const updateChecklist = (updatedChecklist) => {
@@ -88,138 +165,102 @@ const ChecklistsPage = ({ userData, zoneId, onBack, onBackToZones, fullWidth = f
   };
 
   // Функция для обновления описания чек-листа
-const updateChecklistDescription = async (checklistId, currentDescription) => {
-  const newDescription = prompt('Введите новое описание чек-листа:', currentDescription);
-  
-  if (!newDescription || newDescription.trim() === '') {
-    return;
-  }
+  const updateChecklistDescription = async (checklistId, currentDescription) => {
+    const newDescription = prompt('Введите новое описание чек-листа:', currentDescription);
+    
+    if (!newDescription || newDescription.trim() === '') {
+      return;
+    }
 
-  try {
-    const response = await fetch(`${API_URL}/update-checklist-description`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        checklist_id: checklistId,
-        description: newDescription.trim(),
-        admin_id: userData.id,
-        telegram_id: userData.telegram_id,
-      }),
-    });
-
-    if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
-    const result = await response.json();
-
-    if (result.status === 'success') {
-      // Локально обновляем описание
-      updateChecklist({
-        id: checklistId,
-        description: newDescription.trim()
+    try {
+      const response = await fetch(`${API_URL}/update-checklist-description`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          checklist_id: checklistId,
+          description: newDescription.trim(),
+          admin_id: userData.id,
+          telegram_id: userData.telegram_id,
+        }),
       });
-      
-      safeShowAlert(`✅ Описание чек-листа #${checklistId} обновлено`);
-    } else {
-      throw new Error(result.message || 'Ошибка при обновлении описания');
+
+      if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+      const result = await response.json();
+
+      if (result.status === 'success') {
+        // Локально обновляем описание
+        updateChecklist({
+          id: checklistId,
+          description: newDescription.trim()
+        });
+        
+        safeShowAlert(`✅ Описание чек-листа #${checklistId} обновлено`);
+      } else {
+        throw new Error(result.message || 'Ошибка при обновлении описания');
+      }
+    } catch (err) {
+      console.error('❌ Ошибка обновления описания чек-листа:', err);
+      safeShowAlert('Ошибка при обновлении описания: ' + err.message);
     }
-  } catch (err) {
-    console.error('❌ Ошибка обновления описания чек-листа:', err);
-    safeShowAlert('Ошибка при обновлении описания: ' + err.message);
-  }
-};
+  };
 
-
-// Добавьте состояние для кастомной модалки подтверждения
-const [deleteModal, setDeleteModal] = useState({
-  isOpen: false,
-  checklistId: null,
-  description: ''
-});
-
-// Обновленная функция удаления
-const deleteChecklist = (checklistId, description) => {
-  setDeleteModal({
-    isOpen: true,
-    checklistId,
-    description
+  // Добавьте состояние для кастомной модалки подтверждения
+  const [deleteModal, setDeleteModal] = useState({
+    isOpen: false,
+    checklistId: null,
+    description: ''
   });
-};
 
-// Функция подтверждения удаления
-const confirmDelete = () => {
-  if (deleteModal.checklistId) {
-    performChecklistDelete(deleteModal.checklistId);
-  }
-  setDeleteModal({ isOpen: false, checklistId: null, description: '' });
-};
-
-// Функция отмены удаления
-const cancelDelete = () => {
-  setDeleteModal({ isOpen: false, checklistId: null, description: '' });
-};
-
-// Функция для удаления чек-листа
-// const deleteChecklist = async (checklistId, description) => {
-//   const confirmDelete = confirm(`Вы уверены, что хотите удалить чек-лист?\n\n"${description}"`);
-  
-//   if (!confirmDelete) {
-//     return;
-//   }
-
-//   try {
-//     const response = await fetch(`${API_URL}/delete-checklist`, {
-//       method: 'POST',
-//       headers: { 'Content-Type': 'application/json' },
-//       body: JSON.stringify({
-//         checklist_id: checklistId,
-//         admin_id: userData.id,
-//         telegram_id: userData.telegram_id,
-//       }),
-//     });
-
-//     if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
-//     const result = await response.json();
-
-//     if (result.status === 'success') {
-//       // Удаляем чек-лист из локального состояния
-//       setAllChecklists(prev => prev.filter(c => c.id !== checklistId));
-//       safeShowAlert(`🗑️ Чек-лист #${checklistId} удален`);
-//     } else {
-//       throw new Error(result.message || 'Ошибка при удалении чек-листа');
-//     }
-//   } catch (err) {
-//     console.error('❌ Ошибка удаления чек-листа:', err);
-//     safeShowAlert('Ошибка при удалении чек-листа: ' + err.message);
-//   }
-// };
-
-// И добавьте эту функцию для выполнения удаления (она должна быть после confirmDelete):
-const performChecklistDelete = async (checklistId) => {
-  try {
-    const response = await fetch(`${API_URL}/delete-checklist`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        checklist_id: checklistId,
-        admin_id: userData.id,
-        telegram_id: userData.telegram_id,
-      }),
+  // Обновленная функция удаления
+  const deleteChecklist = (checklistId, description) => {
+    setDeleteModal({
+      isOpen: true,
+      checklistId,
+      description
     });
+  };
 
-    if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
-    const result = await response.json();
-
-    if (result.status === 'success') {
-      // Удаляем чек-лист из локального состояния
-      setAllChecklists(prev => prev.filter(c => c.id !== checklistId));
-      safeShowAlert(`🗑️ Чек-лист #${checklistId} удален`);
-    } else {
-      throw new Error(result.message || 'Ошибка при удалении чек-листа');
+  // Функция подтверждения удаления
+  const confirmDelete = () => {
+    if (deleteModal.checklistId) {
+      performChecklistDelete(deleteModal.checklistId);
     }
-  } catch (err) {
-    console.error('❌ Ошибка удаления чек-листа:', err);
-    safeShowAlert('Ошибка при удалении чек-листа: ' + err.message);
-  }
-};
+    setDeleteModal({ isOpen: false, checklistId: null, description: '' });
+  };
+
+  // Функция отмены удаления
+  const cancelDelete = () => {
+    setDeleteModal({ isOpen: false, checklistId: null, description: '' });
+  };
+
+  // И добавьте эту функцию для выполнения удаления (она должна быть после confirmDelete):
+  const performChecklistDelete = async (checklistId) => {
+    try {
+      const response = await fetch(`${API_URL}/delete-checklist`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          checklist_id: checklistId,
+          admin_id: userData.id,
+          telegram_id: userData.telegram_id,
+        }),
+      });
+
+      if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+      const result = await response.json();
+
+      if (result.status === 'success') {
+        // Удаляем чек-лист из локального состояния
+        setAllChecklists(prev => prev.filter(c => c.id !== checklistId));
+        safeShowAlert(`🗑️ Чек-лист #${checklistId} удален`);
+      } else {
+        throw new Error(result.message || 'Ошибка при удалении чек-листа');
+      }
+    } catch (err) {
+      console.error('❌ Ошибка удаления чек-листа:', err);
+      safeShowAlert('Ошибка при удалении чек-листа: ' + err.message);
+    }
+  };
 
   // Загрузка всех зон
   const fetchZones = async () => {
@@ -342,8 +383,6 @@ const performChecklistDelete = async (checklistId) => {
           confirmed: !currentConfirmed
         });
 
-       
-
         safeShowAlert(`✅ Чек-лист #${checklistId} ${!currentConfirmed ? 'подтвержден' : 'снят с подтверждения'}`);
       } else {
         throw new Error(result.message || 'Ошибка при обновлении подтверждения')
@@ -368,16 +407,23 @@ const performChecklistDelete = async (checklistId) => {
 
     try {
       setCreating(true)
+      const requestBody = {
+        zone_id: parseInt(filters.zone_id || zoneId),
+        description: newDescription,
+        admin_id: userData.id,
+        telegram_id: userData.telegram_id,
+        important: important,
+      };
+
+      // Добавляем дату только если она отличается от текущей
+      if (selectedDate && selectedDate !== currentDate) {
+        requestBody.date = selectedDate;
+      }
+
       const response = await fetch(`${API_URL}/create-checklist`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          zone_id: parseInt(filters.zone_id || zoneId),
-          description: newDescription,
-          admin_id: userData.id,
-          telegram_id: userData.telegram_id,
-          important: important,
-        }),
+        body: JSON.stringify(requestBody),
       })
 
       if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`)
@@ -386,6 +432,8 @@ const performChecklistDelete = async (checklistId) => {
       if (result.status === 'success') {
         setNewDescription('')
         setShowCreateForm(false)
+        // Сбросить выбранную дату на текущую
+        setSelectedDate(currentDate);
         // После создания перезагружаем список
         fetchChecklists()
         safeShowAlert('Чек-лист успешно создан!')
@@ -635,6 +683,51 @@ const performChecklistDelete = async (checklistId) => {
     }
   }, [zoneId])
 
+  // Если выбраны фото чек-листы - показываем PhotoChecklistsPage
+  if (viewMode === 'photos') {
+    return (
+      <div style={{
+        padding: '15px',
+        backgroundColor: '#f5f5f5',
+        minHeight: '100vh',
+      }}>
+        {/* Кнопка назад к обычным чек-листам */}
+        <div style={{
+          display: 'flex',
+          alignItems: 'center',
+          marginBottom: '20px',
+          backgroundColor: 'white',
+          padding: '15px',
+          borderRadius: '10px',
+          boxShadow: '0 2px 4px rgba(0,0,0,0.1)'
+        }}>
+          <button
+            onClick={() => setViewMode('checklists')}
+            style={{
+              padding: '10px 15px',
+              backgroundColor: '#718096',
+              color: 'white',
+              border: 'none',
+              borderRadius: '8px',
+              cursor: 'pointer',
+              marginRight: '10px',
+              fontSize: '14px'
+            }}
+          >
+            ◀ Назад к чек-листам
+          </button>
+          <h2 style={{ margin: 0, color: '#2d3748' }}>
+            📸 Все фото чек-листов
+          </h2>
+        </div>
+        
+        {/* Отображаем компонент PhotoChecklistsPage прямо здесь */}
+        <PhotoChecklistsPage userData={userData} />
+      </div>
+    )
+  }
+
+  // Иначе показываем обычные чек-листы
   return (
     <div
       style={{
@@ -680,6 +773,23 @@ const performChecklistDelete = async (checklistId) => {
           <h2 style={{ margin: 0, flex: 1 }}>
             📋 Чек-листы {zoneId ? `зоны #${zoneId}` : 'всех зон'}
           </h2>
+
+          {/* ИСПРАВЛЕННАЯ КНОПКА - переключаем viewMode */}
+          <button
+            onClick={() => setViewMode('photos')}
+            style={{
+              padding: '10px 15px',
+              backgroundColor: '#4299e1',
+              color: 'white',
+              border: 'none',
+              borderRadius: '8px',
+              cursor: 'pointer',
+              margin: '10px'
+            }}
+          >
+            📸 Все фото чек-листов
+          </button>
+
           <button
             onClick={() => {
               setShowCreateForm(true);
@@ -973,44 +1083,44 @@ const performChecklistDelete = async (checklistId) => {
                         {checklist.confirmed ? '☑ Подтверждено' : checklist.status ? '✅ Подтвердить' : '⏳ Ожидает выполнения'}
                       </span>
                       <div
-  style={{
-    display: 'flex',
-    gap: '5px',
-    marginTop: '8px',
-    justifyContent: 'flex-end',
-  }}
->
-  <button
-    onClick={() => updateChecklistDescription(checklist.id, checklist.description)}
-    style={{
-      padding: '4px 8px',
-      backgroundColor: '#4299e1',
-      color: 'white',
-      border: 'none',
-      borderRadius: '6px',
-      cursor: 'pointer',
-      fontSize: '10px',
-    }}
-    title="Редактировать описание"
-  >
-    ✏️
-  </button>
-<button
-  onClick={() => deleteChecklist(checklist.id, checklist.description)}
-  style={{
-    padding: '4px 8px',
-    backgroundColor: '#e53e3e',
-    color: 'white',
-    border: 'none',
-    borderRadius: '6px',
-    cursor: 'pointer',
-    fontSize: '10px',
-  }}
-  title="Удалить чек-лист"
->
-  🗑️
-</button>
-</div>
+                        style={{
+                          display: 'flex',
+                          gap: '5px',
+                          marginTop: '8px',
+                          justifyContent: 'flex-end',
+                        }}
+                      >
+                        <button
+                          onClick={() => updateChecklistDescription(checklist.id, checklist.description)}
+                          style={{
+                            padding: '4px 8px',
+                            backgroundColor: '#4299e1',
+                            color: 'white',
+                            border: 'none',
+                            borderRadius: '6px',
+                            cursor: 'pointer',
+                            fontSize: '10px',
+                          }}
+                          title="Редактировать описание"
+                        >
+                          ✏️
+                        </button>
+                        <button
+                          onClick={() => deleteChecklist(checklist.id, checklist.description)}
+                          style={{
+                            padding: '4px 8px',
+                            backgroundColor: '#e53e3e',
+                            color: 'white',
+                            border: 'none',
+                            borderRadius: '6px',
+                            cursor: 'pointer',
+                            fontSize: '10px',
+                          }}
+                          title="Удалить чек-лист"
+                        >
+                          🗑️
+                        </button>
+                      </div>
                     </div>
                   </div>
 
@@ -1018,7 +1128,6 @@ const performChecklistDelete = async (checklistId) => {
                     <div style={{ marginTop: '8px' }}>
                       {/* Проверяем, есть ли несколько фото (разделенных запятой) */}
                       {checklist.photo.includes(',') ? (
-                        // Отображаем несколько фото в горизонтальном списке с возможностью прокрутки
                         <div style={{
                           display: 'flex',
                           gap: '10px',
@@ -1027,23 +1136,50 @@ const performChecklistDelete = async (checklistId) => {
                           maxWidth: '100%'
                         }}>
                           {checklist.photo.split(',').map((photo, index) => (
-                            <img
-                              key={index}
-                              src={`${API_URL.replace('/api', '')}${photo.trim()}`}
-                              alt={`Фото чек-листа ${index + 1}`}
-                              style={{
-                                minWidth: '150px',
-                                maxWidth: '150px',
-                                maxHeight: '150px',
-                                borderRadius: '5px',
-                                border: '1px solid #e2e8f0',
-                                objectFit: 'cover'
-                              }}
-                              onError={(e) => {
-                                console.error('❌ Ошибка загрузки изображения:', photo);
-                                e.target.style.display = 'none';
-                              }}
-                            />
+                            <div key={index} style={{ position: 'relative' }}>
+                              <img
+                                src={`${API_URL.replace('/api', '')}${photo.trim()}`}
+                                alt={`Фото чек-листа ${index + 1}`}
+                                style={{
+                                  width: '80px',
+                                  height: '80px',
+                                  borderRadius: '6px',
+                                  border: '1px solid #e2e8f0',
+                                  objectFit: 'cover',
+                                  cursor: 'pointer',
+                                }}
+                                onClick={() => {
+                                  openPhotoModal(checklist);
+                                  // Устанавливаем текущий индекс
+                                  setPhotoModal(prev => ({
+                                    ...prev,
+                                    currentIndex: index
+                                  }));
+                                }}
+                                onError={(e) => {
+                                  console.error('❌ Ошибка загрузки изображения:', photo);
+                                  e.target.style.display = 'none';
+                                }}
+                              />
+                              {/* Иконка галереи для множественных фото */}
+                              {checklist.photo.split(',').length > 1 && (
+                                <div
+                                  style={{
+                                    position: 'absolute',
+                                    bottom: '4px',
+                                    right: '4px',
+                                    backgroundColor: 'rgba(0,0,0,0.7)',
+                                    color: 'white',
+                                    borderRadius: '4px',
+                                    padding: '2px 6px',
+                                    fontSize: '10px',
+                                    fontWeight: 'bold',
+                                  }}
+                                >
+                                  {index + 1}/{checklist.photo.split(',').length}
+                                </div>
+                              )}
+                            </div>
                           ))}
                         </div>
                       ) : (
@@ -1056,7 +1192,9 @@ const performChecklistDelete = async (checklistId) => {
                             maxHeight: '150px',
                             borderRadius: '5px',
                             border: '1px solid #e2e8f0',
+                            cursor: 'pointer',
                           }}
+                          onClick={() => openPhotoModal(checklist)}
                           onError={(e) => {
                             console.error('❌ Ошибка загрузки изображения:', checklist.photo);
                             e.target.style.display = 'none';
@@ -1072,80 +1210,276 @@ const performChecklistDelete = async (checklistId) => {
         )}
       </div>
 
-{/* Кастомная модалка подтверждения удаления */}
-{deleteModal.isOpen && (
-  <div
-    style={{
-      position: 'fixed',
-      top: 0,
-      left: 0,
-      right: 0,
-      bottom: 0,
-      backgroundColor: 'rgba(0,0,0,0.5)',
-      display: 'flex',
-      justifyContent: 'center',
-      alignItems: 'center',
-      zIndex: 1000,
-      padding: '20px',
-    }}
-  >
-    <div
-      style={{
-        backgroundColor: 'white',
-        padding: '20px',
-        borderRadius: '12px',
-        width: '100%',
-        maxWidth: '400px',
-      }}
-    >
-      <h3 style={{ marginTop: 0, marginBottom: '15px', color: '#e53e3e' }}>
-        🗑️ Подтверждение удаления
-      </h3>
-      <p style={{ marginBottom: '20px' }}>
-        Вы уверены, что хотите удалить чек-лист?
-      </p>
-      <p style={{ 
-        marginBottom: '20px', 
-        padding: '10px', 
-        backgroundColor: '#f7fafc', 
-        borderRadius: '6px',
-        fontStyle: 'italic'
-      }}>
-        "{deleteModal.description}"
-      </p>
-      <div style={{ display: 'flex', gap: '10px' }}>
-        <button
-          onClick={cancelDelete}
+      {/* Модальное окно для просмотра фотографий */}
+      {photoModal.isOpen && (
+        <div
           style={{
-            padding: '10px 20px',
-            backgroundColor: '#a0aec0',
-            color: 'white',
-            border: 'none',
-            borderRadius: '8px',
-            cursor: 'pointer',
-            flex: 1,
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            backgroundColor: 'rgba(0,0,0,0.9)',
+            display: 'flex',
+            flexDirection: 'column',
+            justifyContent: 'center',
+            alignItems: 'center',
+            zIndex: 2000,
+            padding: '20px',
+          }}
+          onClick={closePhotoModal}
+        >
+          {/* Кнопка закрытия */}
+          <button
+            onClick={closePhotoModal}
+            style={{
+              position: 'absolute',
+              top: '20px',
+              right: '20px',
+              backgroundColor: 'rgba(255,255,255,0.2)',
+              color: 'white',
+              border: 'none',
+              borderRadius: '50%',
+              width: '40px',
+              height: '40px',
+              fontSize: '24px',
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              zIndex: 2001,
+            }}
+          >
+            ✕
+          </button>
+
+          {/* Счетчик фотографий */}
+          <div
+            style={{
+              position: 'absolute',
+              top: '20px',
+              left: '20px',
+              color: 'white',
+              fontSize: '16px',
+              fontWeight: 'bold',
+              backgroundColor: 'rgba(0,0,0,0.5)',
+              padding: '8px 12px',
+              borderRadius: '20px',
+              zIndex: 2001,
+            }}
+          >
+            {photoModal.currentIndex + 1} / {photoModal.photos.length}
+          </div>
+
+          {/* Контейнер для фото */}
+          <div
+            style={{
+              width: '100%',
+              height: '100%',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              position: 'relative',
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Фото */}
+            <img
+              src={`${API_URL.replace('/api', '')}${photoModal.photos[photoModal.currentIndex]}`}
+              alt={`Фото ${photoModal.currentIndex + 1}`}
+              style={{
+                maxWidth: '100%',
+                maxHeight: '90%',
+                objectFit: 'contain',
+              }}
+              onError={(e) => {
+                console.error('❌ Ошибка загрузки изображения:', photoModal.photos[photoModal.currentIndex]);
+                e.target.style.display = 'none';
+              }}
+            />
+
+            {/* Кнопки навигации (только если больше 1 фото) */}
+            {photoModal.photos.length > 1 && (
+              <>
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    navigatePhoto(-1);
+                  }}
+                  style={{
+                    position: 'absolute',
+                    left: '20px',
+                    top: '50%',
+                    transform: 'translateY(-50%)',
+                    backgroundColor: 'rgba(255,255,255,0.2)',
+                    color: 'white',
+                    border: 'none',
+                    borderRadius: '50%',
+                    width: '50px',
+                    height: '50px',
+                    fontSize: '24px',
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                  }}
+                >
+                  ◀
+                </button>
+
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    navigatePhoto(1);
+                  }}
+                  style={{
+                    position: 'absolute',
+                    right: '20px',
+                    top: '50%',
+                    transform: 'translateY(-50%)',
+                    backgroundColor: 'rgba(255,255,255,0.2)',
+                    color: 'white',
+                    border: 'none',
+                    borderRadius: '50%',
+                    width: '50px',
+                    height: '50px',
+                    fontSize: '24px',
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                  }}
+                >
+                  ▶
+                </button>
+              </>
+            )}
+          </div>
+
+          {/* Миниатюры внизу (если больше 1 фото) */}
+          {photoModal.photos.length > 1 && (
+            <div
+              style={{
+                position: 'absolute',
+                bottom: '20px',
+                left: '0',
+                right: '0',
+                display: 'flex',
+                justifyContent: 'center',
+                gap: '10px',
+                padding: '10px',
+                overflowX: 'auto',
+                backgroundColor: 'rgba(0,0,0,0.5)',
+                zIndex: 2001,
+              }}
+            >
+              {photoModal.photos.map((photo, index) => (
+                <div
+                  key={index}
+                  style={{
+                    width: '60px',
+                    height: '60px',
+                    borderRadius: '4px',
+                    overflow: 'hidden',
+                    cursor: 'pointer',
+                    border: index === photoModal.currentIndex ? '3px solid #4299e1' : '1px solid #ccc',
+                    opacity: index === photoModal.currentIndex ? 1 : 0.7,
+                  }}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setPhotoModal(prev => ({ ...prev, currentIndex: index }));
+                  }}
+                >
+                  <img
+                    src={`${API_URL.replace('/api', '')}${photo.trim()}`}
+                    alt={`Миниатюра ${index + 1}`}
+                    style={{
+                      width: '100%',
+                      height: '100%',
+                      objectFit: 'cover',
+                    }}
+                  />
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Кастомная модалка подтверждения удаления */}
+      {deleteModal.isOpen && (
+        <div
+          style={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            backgroundColor: 'rgba(0,0,0,0.5)',
+            display: 'flex',
+            justifyContent: 'center',
+            alignItems: 'center',
+            zIndex: 1000,
+            padding: '20px',
           }}
         >
-          Отмена
-        </button>
-        <button
-          onClick={confirmDelete}
-          style={{
-            padding: '10px 20px',
-            backgroundColor: '#e53e3e',
-            color: 'white',
-            border: 'none',
-            borderRadius: '8px',
-            cursor: 'pointer',
-            flex: 1,
-          }}
-        >
-          Удалить
-        </button>
-      </div>
-    </div>
-  </div>
-)}
+          <div
+            style={{
+              backgroundColor: 'white',
+              padding: '20px',
+              borderRadius: '12px',
+              width: '100%',
+              maxWidth: '400px',
+            }}
+          >
+            <h3 style={{ marginTop: 0, marginBottom: '15px', color: '#e53e3e' }}>
+              🗑️ Подтверждение удаления
+            </h3>
+            <p style={{ marginBottom: '20px' }}>
+              Вы уверены, что хотите удалить чек-лист?
+            </p>
+            <p style={{ 
+              marginBottom: '20px', 
+              padding: '10px', 
+              backgroundColor: '#f7fafc', 
+              borderRadius: '6px',
+              fontStyle: 'italic'
+            }}>
+              "{deleteModal.description}"
+            </p>
+            <div style={{ display: 'flex', gap: '10px' }}>
+              <button
+                onClick={cancelDelete}
+                style={{
+                  padding: '10px 20px',
+                  backgroundColor: '#a0aec0',
+                  color: 'white',
+                  border: 'none',
+                  borderRadius: '8px',
+                  cursor: 'pointer',
+                  flex: 1,
+                }}
+              >
+                Отмена
+              </button>
+              <button
+                onClick={confirmDelete}
+                style={{
+                  padding: '10px 20px',
+                  backgroundColor: '#e53e3e',
+                  color: 'white',
+                  border: 'none',
+                  borderRadius: '8px',
+                  cursor: 'pointer',
+                  flex: 1,
+                }}
+              >
+                Удалить
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Модальное окно создания чек-листа */}
       {showCreateForm && (
@@ -1209,6 +1543,46 @@ const performChecklistDelete = async (checklistId) => {
                   </option>
                 ))}
               </select>
+            </div>
+            <div style={{ marginBottom: '15px' }}>
+              <label
+                style={{
+                  display: 'block',
+                  marginBottom: '5px',
+                  fontWeight: 'bold',
+                }}
+              >
+                📅 Дата чек-листа:
+              </label>
+              <input
+                type="date"
+                value={selectedDate}
+                onChange={(e) => setSelectedDate(e.target.value)}
+                style={{
+                  width: '100%',
+                  padding: '8px',
+                  border: '1px solid #ddd',
+                  borderRadius: '8px',
+                  fontSize: '14px',
+                }}
+              />
+              {selectedDate !== currentDate && (
+                <button
+                  onClick={() => setSelectedDate(currentDate)}
+                  style={{
+                    marginTop: '5px',
+                    padding: '5px 10px',
+                    backgroundColor: '#a0aec0',
+                    color: 'white',
+                    border: 'none',
+                    borderRadius: '5px',
+                    cursor: 'pointer',
+                    fontSize: '12px',
+                  }}
+                >
+                  ↺ Сбросить на сегодня
+                </button>
+              )}
             </div>
 
             <div style={{ marginBottom: '15px' }}>

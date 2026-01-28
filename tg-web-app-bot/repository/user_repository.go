@@ -3,10 +3,13 @@ package repository
 
 import (
 	"database/sql"
+	"errors"
 	"fmt"
 	"log"
 	"tg-web-app-bot/models"
 	"tg-web-app-bot/utils"
+
+	"github.com/lib/pq"
 )
 
 type UserRepository struct {
@@ -70,6 +73,21 @@ func (r *UserRepository) UpdateUserPhone(userID int64, telegramID int64, phoneNu
     log.Printf("✅ Телефон обновлен для пользователя %d: phone=%s (затронуто строк: %d)", 
         telegramID, phoneNumber, rowsAffected)
     
+    return nil
+}
+
+func (r *UserRepository) UpdateUserFull(userID int64, firstName, lastName, username, phoneNumber string, confirmed bool) error {
+    query := `
+        UPDATE users
+        SET first_name = $1, last_name = $2, username = $3, phone_number = $4, confirmed = $5
+        WHERE id = $6
+    `
+    
+    _, err := r.db.Exec(query, firstName, lastName, username, phoneNumber, confirmed, userID)
+    if err != nil {
+        log.Printf("❌ Ошибка полного обновления пользователя ID=%d: %v", userID, err)
+        return err
+    }
     return nil
 }
 
@@ -804,25 +822,52 @@ func (r *UserRepository) DropZone(zoneId int64) error {
 
 // CreateChecklist создает новый чеклист
 func (r *UserRepository) CreateChecklist(checklist *models.Checklist) error {
-    query := `
-        INSERT INTO checklists (zone_id, description, admin_id, important)
-        VALUES ($1, $2, $3, $4)
-        RETURNING id, date, issue_time, status, confirmed
-    `
+    var query string
+    var err error
     
-    err := r.db.QueryRow(
-        query,
-        checklist.ZoneID,
-        checklist.Description,
-        checklist.AdminID,
-        checklist.Important,
-    ).Scan(
-        &checklist.ID,
-        &checklist.Date,
-        &checklist.IssueTime,
-        &checklist.Status,
-        &checklist.Confirmed,
-    )
+    // Проверяем, указана ли дата
+    if checklist.Date != nil {
+        // Если дата указана, используем её
+        query = `
+            INSERT INTO checklists (zone_id, description, admin_id, important, date)
+            VALUES ($1, $2, $3, $4, $5)
+            RETURNING id, date, issue_time, status, confirmed
+        `
+        err = r.db.QueryRow(
+            query,
+            checklist.ZoneID,
+            checklist.Description,
+            checklist.AdminID,
+            checklist.Important,
+            checklist.Date,
+        ).Scan(
+            &checklist.ID,
+            &checklist.Date,
+            &checklist.IssueTime,
+            &checklist.Status,
+            &checklist.Confirmed,
+        )
+    } else {
+        // Если дата не указана, используем текущую дату (по умолчанию в БД)
+        query = `
+            INSERT INTO checklists (zone_id, description, admin_id, important)
+            VALUES ($1, $2, $3, $4)
+            RETURNING id, date, issue_time, status, confirmed
+        `
+        err = r.db.QueryRow(
+            query,
+            checklist.ZoneID,
+            checklist.Description,
+            checklist.AdminID,
+            checklist.Important,
+        ).Scan(
+            &checklist.ID,
+            &checklist.Date,
+            &checklist.IssueTime,
+            &checklist.Status,
+            &checklist.Confirmed,
+        )
+    }
     
     if err != nil {
         log.Printf("❌ Ошибка создания чеклиста: %v", err)
@@ -833,7 +878,6 @@ func (r *UserRepository) CreateChecklist(checklist *models.Checklist) error {
         checklist.ID, checklist.ZoneID, checklist.AdminID, checklist.Date)
     return nil
 }
-
 // UpdateChecklistDescription обновляет описание чеклиста
 func (r *UserRepository) UpdateChecklistDescription(checklistID int64, description string) error {
     query := `UPDATE checklists SET description = $1 WHERE id = $2`
@@ -1307,20 +1351,116 @@ func (r *UserRepository) GetWorkerByZoneID(zoneID int64, date string) ([]*models
 
 
 
-// GetWorkerMonthlySchedule получает расписание работника за указанный месяц
-func (r *UserRepository) GetWorkerMonthlySchedule(workerID int64, month string) ([]*models.Schedule, error) {
+// GetUserFinesByPeriod получает все штрафы для пользователя за указанный период
+func (r *UserRepository) GetUserFinesByPeriod(userID int64, startDate, endDate string) ([]*models.Fine, error) {
+    query := `
+        SELECT id, name, price, user_id, created_at
+        FROM fines
+        WHERE user_id = $1 
+          AND DATE(created_at) >= $2 
+          AND DATE(created_at) <= $3
+        ORDER BY created_at DESC
+    `
+    
+    rows, err := r.db.Query(query, userID, startDate, endDate)
+    if err != nil {
+        log.Printf("❌ Ошибка выполнения запроса получения штрафов пользователя %d за период %s - %s: %v", 
+            userID, startDate, endDate, err)
+        return nil, err
+    }
+    defer rows.Close()
+    
+    var fines []*models.Fine
+    for rows.Next() {
+        var fine models.Fine
+        err := rows.Scan(
+            &fine.ID,
+            &fine.Name,
+            &fine.Price,
+            &fine.UserID,
+            &fine.CreatedAt,
+        )
+        if err != nil {
+            log.Printf("❌ Ошибка сканирования штрафа: %v", err)
+            return nil, err
+        }
+        
+        fines = append(fines, &fine)
+    }
+    
+    if err := rows.Err(); err != nil {
+        log.Printf("❌ Ошибка при работе с результатами запроса штрафов: %v", err)
+        return nil, err
+    }
+    
+    log.Printf("✅ Успешно получено штрафов для пользователя %d за период %s - %s: %d", 
+        userID, startDate, endDate, len(fines))
+    return fines, nil
+}
+
+// GetUserBonusesByPeriod получает все премии для пользователя за указанный период
+func (r *UserRepository) GetUserBonusesByPeriod(userID int64, startDate, endDate string) ([]*models.Bonus, error) {
+    query := `
+        SELECT id, name, price, user_id, created_at
+        FROM bonuses
+        WHERE user_id = $1 
+          AND DATE(created_at) >= $2 
+          AND DATE(created_at) <= $3
+        ORDER BY created_at DESC
+    `
+    
+    rows, err := r.db.Query(query, userID, startDate, endDate)
+    if err != nil {
+        log.Printf("❌ Ошибка выполнения запроса получения премий пользователя %d за период %s - %s: %v", 
+            userID, startDate, endDate, err)
+        return nil, err
+    }
+    defer rows.Close()
+    
+    var bonuses []*models.Bonus
+    for rows.Next() {
+        var bonus models.Bonus
+        err := rows.Scan(
+            &bonus.ID,
+            &bonus.Name,
+            &bonus.Price,
+            &bonus.UserID,
+            &bonus.CreatedAt,
+        )
+        if err != nil {
+            log.Printf("❌ Ошибка сканирования премии: %v", err)
+            return nil, err
+        }
+        
+        bonuses = append(bonuses, &bonus)
+    }
+    
+    if err := rows.Err(); err != nil {
+        log.Printf("❌ Ошибка при работе с результатами запроса премий: %v", err)
+        return nil, err
+    }
+    
+    log.Printf("✅ Успешно получено премий для пользователя %d за период %s - %s: %d", 
+        userID, startDate, endDate, len(bonuses))
+    return bonuses, nil
+}
+
+// GetWorkerScheduleByPeriod получает расписание работника за указанный период
+func (r *UserRepository) GetWorkerScheduleByPeriod(workerID int64, startDate, endDate string) ([]*models.Schedule, error) {
     query := `
         SELECT id, worker_id, zone_id, hourly_rate, date, 
                planned_start_time, planned_end_time, 
                actual_start_time, actual_end_time
         FROM schedules 
-        WHERE worker_id = $1 AND to_char(date, 'YYYY-MM') = $2
+        WHERE worker_id = $1 
+          AND date >= $2 
+          AND date <= $3
         ORDER BY date
     `
     
-    rows, err := r.db.Query(query, workerID, month)
+    rows, err := r.db.Query(query, workerID, startDate, endDate)
     if err != nil {
-        log.Printf("❌ Ошибка выполнения запроса расписания за месяц: %v", err)
+        log.Printf("❌ Ошибка выполнения запроса расписания за период: %v", err)
         return nil, err
     }
     defer rows.Close()
@@ -1362,10 +1502,10 @@ func (r *UserRepository) GetWorkerMonthlySchedule(workerID int64, month string) 
         return nil, err
     }
     
-    log.Printf("✅ Успешно получено расписаний для работника %d за месяц %s: %d", workerID, month, len(schedules))
+    log.Printf("✅ Успешно получено расписаний для работника %d за период %s - %s: %d", 
+        workerID, startDate, endDate, len(schedules))
     return schedules, nil
 }
-
 // DeleteOldChecklists удаляет старые чек-листы с important=false и датой старше недели
 func (r *UserRepository) DeleteOldChecklists() ([]string, error) {
     query := `
@@ -1729,15 +1869,29 @@ func (r *UserRepository) CreateBonusTemplate(template *models.BonusTemplate) err
     return nil
 }
 
-// CreateBonus создает новую премию
 func (r *UserRepository) CreateBonus(bonus *models.Bonus) error {
-    query := `
-        INSERT INTO bonuses (name, price, user_id)
-        VALUES ($1, $2, $3)
-        RETURNING id, created_at
-    `
+    var query string
+    var err error
     
-    err := r.db.QueryRow(query, bonus.Name, bonus.Price, bonus.UserID).Scan(&bonus.ID, &bonus.CreatedAt)
+    // Проверяем, есть ли поле created_at в объекте (указатель не nil)
+    if bonus.CreatedAt != nil {
+        // Если дата указана, используем её
+        query = `
+            INSERT INTO bonuses (name, price, user_id, created_at)
+            VALUES ($1, $2, $3, $4)
+            RETURNING id, created_at
+        `
+        err = r.db.QueryRow(query, bonus.Name, bonus.Price, bonus.UserID, bonus.CreatedAt).Scan(&bonus.ID, &bonus.CreatedAt)
+    } else {
+        // Если дата не указана, используем текущее время
+        query = `
+            INSERT INTO bonuses (name, price, user_id)
+            VALUES ($1, $2, $3)
+            RETURNING id, created_at
+        `
+        err = r.db.QueryRow(query, bonus.Name, bonus.Price, bonus.UserID).Scan(&bonus.ID, &bonus.CreatedAt)
+    }
+    
     if err != nil {
         log.Printf("❌ Ошибка создания премии: %v", err)
         return err
@@ -1746,16 +1900,29 @@ func (r *UserRepository) CreateBonus(bonus *models.Bonus) error {
     log.Printf("✅ Успешно создана премия с ID: %d для пользователя %d", bonus.ID, bonus.UserID)
     return nil
 }
-
-// CreateFine создает новый штраф
 func (r *UserRepository) CreateFine(fine *models.Fine) error {
-    query := `
-        INSERT INTO fines (name, price, user_id)
-        VALUES ($1, $2, $3)
-        RETURNING id, created_at
-    `
+    var query string
+    var err error
     
-    err := r.db.QueryRow(query, fine.Name, fine.Price, fine.UserID).Scan(&fine.ID, &fine.CreatedAt)
+    // Проверяем, есть ли поле created_at в объекте (указатель не nil)
+    if fine.CreatedAt != nil {
+        // Если дата указана, используем её
+        query = `
+            INSERT INTO fines (name, price, user_id, created_at)
+            VALUES ($1, $2, $3, $4)
+            RETURNING id, created_at
+        `
+        err = r.db.QueryRow(query, fine.Name, fine.Price, fine.UserID, fine.CreatedAt).Scan(&fine.ID, &fine.CreatedAt)
+    } else {
+        // Если дата не указана, используем текущее время
+        query = `
+            INSERT INTO fines (name, price, user_id)
+            VALUES ($1, $2, $3)
+            RETURNING id, created_at
+        `
+        err = r.db.QueryRow(query, fine.Name, fine.Price, fine.UserID).Scan(&fine.ID, &fine.CreatedAt)
+    }
+    
     if err != nil {
         log.Printf("❌ Ошибка создания штрафа: %v", err)
         return err
@@ -1845,4 +2012,142 @@ func (r *UserRepository) DeleteFine(id int64) error {
     return nil
 }
 
+//__________________________________________________________________________//
 
+// GetAllChecklistsWithPhotos получает все чек-листы с фотографиями, отсортированные по дате (от новой к старой)
+// GetAllChecklistsWithPhotos получает все чек-листы с фотографиями и заполняет переданный срез
+func (r *UserRepository) GetAllChecklistsWithPhotos(checklists *[]*models.Checklist) error {
+    query := `
+        SELECT id, date, zone_id, description, photo, status, 
+               issue_time, return_time, admin_id, confirmed, important
+        FROM checklists
+        WHERE photo IS NOT NULL AND photo != ''
+        ORDER BY date DESC, issue_time DESC
+    `
+    
+    rows, err := r.db.Query(query)
+    if err != nil {
+        log.Printf("❌ Ошибка выполнения запроса получения чек-листов с фото: %v", err)
+        return err
+    }
+    defer rows.Close()
+    
+    // Очищаем срез
+    *checklists = make([]*models.Checklist, 0)
+    
+    for rows.Next() {
+        var checklist models.Checklist
+        err := rows.Scan(
+            &checklist.ID,
+            &checklist.Date,
+            &checklist.ZoneID,
+            &checklist.Description,
+            &checklist.Photo,
+            &checklist.Status,
+            &checklist.IssueTime,
+            &checklist.ReturnTime,
+            &checklist.AdminID,
+            &checklist.Confirmed,
+            &checklist.Important,
+        )
+        if err != nil {
+            log.Printf("❌ Ошибка сканирования чек-листа: %v", err)
+            return err
+        }
+        
+        // Добавляем в срез через указатель
+        *checklists = append(*checklists, &checklist)
+    }
+    
+    if err := rows.Err(); err != nil {
+        log.Printf("❌ Ошибка при работе с результатами запроса чек-листов: %v", err)
+        return err
+    }
+    
+    log.Printf("✅ Успешно получено чек-листов с фото: %d", len(*checklists))
+    return nil
+}
+
+// GetChecklistsByIDs получает чек-листы по массиву ID
+func (r *UserRepository) GetChecklistsByIDs(checklists *[]*models.Checklist, checklistIDs []int64) error {
+    if len(checklistIDs) == 0 {
+        *checklists = []*models.Checklist{}
+        return nil
+    }
+    
+    // Создаем SQL с параметрами
+    query := `
+        SELECT id, date, zone_id, description, photo, status, 
+               issue_time, return_time, admin_id, confirmed, important
+        FROM checklists
+        WHERE id = ANY($1)
+        ORDER BY id DESC
+    `
+    
+    rows, err := r.db.Query(query, pq.Array(checklistIDs))
+    if err != nil {
+        log.Printf("❌ Ошибка выполнения запроса получения чек-листов по ID: %v", err)
+        return err
+    }
+    defer rows.Close()
+    
+    *checklists = []*models.Checklist{}
+    
+    for rows.Next() {
+        var checklist models.Checklist
+        err := rows.Scan(
+            &checklist.ID,
+            &checklist.Date,
+            &checklist.ZoneID,
+            &checklist.Description,
+            &checklist.Photo,
+            &checklist.Status,
+            &checklist.IssueTime,
+            &checklist.ReturnTime,
+            &checklist.AdminID,
+            &checklist.Confirmed,
+            &checklist.Important,
+        )
+        if err != nil {
+            log.Printf("❌ Ошибка сканирования чек-листа: %v", err)
+            return err
+        }
+        
+        *checklists = append(*checklists, &checklist)
+    }
+    
+    if err := rows.Err(); err != nil {
+        log.Printf("❌ Ошибка при работе с результатами запроса: %v", err)
+        return err
+    }
+    
+    log.Printf("✅ Успешно получено %d чек-листов по ID", len(*checklists))
+    return nil
+}
+
+// DeleteChecklistsByIDs удаляет чек-листы по массиву ID
+func (r *UserRepository) DeleteChecklistsByIDs(checklistIDs []int64) error {
+    if len(checklistIDs) == 0 {
+        return errors.New("не указаны ID для удаления")
+    }
+    
+    query := `
+        DELETE FROM checklists
+        WHERE id = ANY($1)
+    `
+    
+    result, err := r.db.Exec(query, pq.Array(checklistIDs))
+    if err != nil {
+        log.Printf("❌ Ошибка выполнения запроса удаления чек-листов: %v", err)
+        return err
+    }
+    
+    rowsAffected, err := result.RowsAffected()
+    if err != nil {
+        log.Printf("⚠️ Не удалось получить количество удаленных строк: %v", err)
+    } else {
+        log.Printf("✅ Удалено %d чек-листов из БД", rowsAffected)
+    }
+    
+    return nil
+}

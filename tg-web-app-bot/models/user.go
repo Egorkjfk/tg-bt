@@ -48,7 +48,7 @@ type Zone struct {
 
 type Checklist struct {
     ID          int64      `json:"id"`
-    Date        string     `json:"date"`         // формат "дд.мм.гггг"
+    Date        *string     `json:"date,omitempty"`         // формат "дд.мм.гггг"
     ZoneID      int64      `json:"zone_id"`
     Description string     `json:"description"`
     Photo       string     `json:"photo"`        // путь к фото
@@ -93,7 +93,7 @@ type Fine struct {
     Name      string    `json:"name" db:"name"`
     Price     float64   `json:"price" db:"price"`
     UserID    int64     `json:"user_id" db:"user_id"`
-    CreatedAt time.Time `json:"created_at" db:"created_at"`
+    CreatedAt *time.Time `json:"created_at,omitempty" db:"created_at"`
 }
 
 type BonusTemplate struct {
@@ -107,5 +107,5 @@ type Bonus struct {
     Name      string    `json:"name" db:"name"`
     Price     float64   `json:"price" db:"price"`
     UserID    int64     `json:"user_id" db:"user_id"`
-    CreatedAt time.Time `json:"created_at" db:"created_at"`
+    CreatedAt *time.Time `json:"created_at,omitempty" db:"created_at"`
 }

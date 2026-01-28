@@ -94,6 +94,7 @@ if err != nil {
 	taskScheduler := services.NewTaskScheduler(userService)
 	taskScheduler.StartAllTasks()
 
+	http.Handle("/api/update-user-full", handlers.StandardMiddlewareChain(httpHandlers.HandleUpdateUserFull))
 	// Настраиваем HTTP маршруты с использованием стандартной цепочки middleware
 	http.Handle("/api/update-phone", handlers.StandardMiddlewareChain(httpHandlers.HandlePhoneUpdate))
 	http.Handle("/api/get-user", handlers.StandardMiddlewareChain(httpHandlers.HandleGetUser))
@@ -105,7 +106,6 @@ if err != nil {
 http.Handle("/api/delete-user", handlers.StandardMiddlewareChain(httpHandlers.HandleDeleteUser))
 
 	http.Handle("/api/get-checklists", handlers.StandardMiddlewareChain(httpHandlers.HandleGetChecklists))
-    // http.Handle("/api/update-checklist", handlers.StandardMiddlewareChain(httpHandlers.HandleUpdateChecklist))
     http.Handle("/api/create-checklist", handlers.StandardMiddlewareChain(httpHandlers.HandleCreateChecklist))
 http.Handle("/api/update-checklist-description", handlers.StandardMiddlewareChain(httpHandlers.HandleUpdateChecklistDescription))
 http.Handle("/api/delete-checklist", handlers.StandardMiddlewareChain(httpHandlers.HandleDeleteChecklist))
@@ -133,7 +133,7 @@ http.Handle("/api/get-all-salaries", handlers.StandardMiddlewareChain(httpHandle
 	http.Handle("/api/get-worker-checklists", handlers.StandardMiddlewareChain(httpHandlers.HandleGetWorkerChecklists))
 	
 	// Добавляем эндпоинт для загрузки фото чеклиста
-	// http.Handle("/api/upload-checklist-photo", handlers.StandardMiddlewareChain(httpHandlers.HandleUploadChecklistPhoto))
+	//http.Handle("/api/upload-checklist-photo", handlers.StandardMiddlewareChain(httpHandlers.HandleUploadChecklistPhoto))
 http.Handle("/api/add-checklist-photo", handlers.StandardMiddlewareChain(httpHandlers.HandleAddChecklistPhoto))
 	http.Handle("/api/update-checklist-status", handlers.StandardMiddlewareChain(httpHandlers.HandleUpdateChecklistStatus))
 	// Добавляем эндпоинт для получения текущей даты с сервера
@@ -167,7 +167,9 @@ http.Handle("/api/delete-fine", handlers.StandardMiddlewareChain(httpHandlers.Ha
 	http.Handle("/list/", http.StripPrefix("/list/", http.FileServer(http.Dir("./public/list/"))))
 	 	http.Handle("/zones/", http.StripPrefix("/zones/", http.FileServer(http.Dir("./public/zones/"))))
 	 	http.Handle("/smena/", http.StripPrefix("/smena/", http.FileServer(http.Dir("./public/smena/"))))
-	 	
+
+http.Handle("/api/get-all-checklist-photos", handlers.StandardMiddlewareChain(httpHandlers.HandleGetAllChecklistsWithPhotos))
+http.Handle("/api/delete-checklists", handlers.StandardMiddlewareChain(httpHandlers.HandleDeleteChecklistsByIDs))
 	 	
 	
 	// Запускаем HTTP сервер в отдельной горутине

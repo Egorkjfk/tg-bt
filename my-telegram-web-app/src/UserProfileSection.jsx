@@ -1,69 +1,86 @@
-import React, { useState } from 'react';
-import { API_URL } from './constants/api';
+import React, { useState } from 'react'
+import { API_URL } from './constants/api'
 
-const UserProfileSection = ({ userData, onProfileUpdate, fullWidth = false }) => {
-	const [isEditing, setIsEditing] = useState(false);
+const UserProfileSection = ({
+	userData,
+	onProfileUpdate,
+	fullWidth = false,
+}) => {
+	const [isEditing, setIsEditing] = useState(false)
 	const [editData, setEditData] = useState({
 		first_name: userData.first_name || '',
-	last_name: userData.last_name || '',
-	phone_number: userData.phone_number || ''
-	});
+		last_name: userData.last_name || '',
+		phone_number: userData.phone_number || '',
+	})
 
 	const handleEditClick = () => {
 		setEditData({
 			first_name: userData.first_name || '',
 			last_name: userData.last_name || '',
-			phone_number: userData.phone_number || ''
-		});
-		setIsEditing(true);
-	};
+			phone_number: userData.phone_number || '',
+		})
+		setIsEditing(true)
+	}
 
 	const handleSave = async () => {
-	try {
-			const response = await fetch(`${API_URL}/update-phone`, {
+		// Валидация номера перед отправкой
+		if (editData.phone_number && editData.phone_number.length !== 11) {
+			alert(
+				'⚠️ Номер телефона должен состоять ровно из 11 цифр (например, 79991234567)'
+			)
+			return
+		}
+
+		try {
+			const response = await fetch(`${API_URL}/update-user-full`, {
 				method: 'POST',
 				headers: { 'Content-Type': 'application/json' },
 				body: JSON.stringify({
 					user_id: userData.id,
+					first_name: editData.first_name,
+					last_name: editData.last_name,
+					username: userData.username, // юзернейм обычно не меняется вручную
+					phone_number: editData.phone_number,
+					confirmed: userData.confirmed, // сохраняем текущий статус подтверждения
+					admin_id: userData.id, // для проверки прав на бэкенде (свой профиль)
 					telegram_id: userData.telegram_id,
-					phone_number: editData.phone_number
 				}),
-			});
+			})
 
 			if (!response.ok) {
-				throw new Error(`HTTP error! status: ${response.status}`);
+				throw new Error(`HTTP error! status: ${response.status}`)
 			}
 
-			const result = await response.json();
+			const result = await response.json()
 
 			if (result.status === 'success') {
-				// Обновляем данные пользователя
+				alert('✅ Профиль успешно обновлен')
 				onProfileUpdate({
 					...userData,
 					first_name: editData.first_name,
 					last_name: editData.last_name,
-					phone_number: editData.phone_number
-				});
-				setIsEditing(false);
+					phone_number: editData.phone_number,
+				})
+				setIsEditing(false)
 			} else {
-				throw new Error(result.message || 'Ошибка при обновлении профиля');
+				throw new Error(result.message || 'Ошибка при обновлении профиля')
 			}
-	} catch (err) {
-			console.error('❌ Ошибка обновления профиля:', err);
-			alert('Ошибка при обновлении профиля: ' + err.message);
+		} catch (err) {
+			console.error('❌ Ошибка обновления профиля:', err)
+			alert('Ошибка при обновлении профиля: ' + err.message)
 		}
-	};
+	}
 
 	const handleCancel = () => {
-	setIsEditing(false);
-	};
+		setIsEditing(false)
+	}
 
 	const handleChange = (field, value) => {
-	setEditData(prev => ({
+		setEditData(prev => ({
 			...prev,
-			[field]: value
-		}));
-	};
+			[field]: value,
+		}))
+	}
 
 	return (
 		<div
@@ -111,13 +128,19 @@ const UserProfileSection = ({ userData, onProfileUpdate, fullWidth = false }) =>
 			{isEditing ? (
 				<div style={{ marginBottom: '15px' }}>
 					<div style={{ marginBottom: '10px' }}>
-						<label style={{ display: 'block', marginBottom: '5px', fontWeight: 'bold' }}>
+						<label
+							style={{
+								display: 'block',
+								marginBottom: '5px',
+								fontWeight: 'bold',
+							}}
+						>
 							Имя:
 						</label>
 						<input
-							type="text"
+							type='text'
 							value={editData.first_name}
-							onChange={(e) => handleChange('first_name', e.target.value)}
+							onChange={e => handleChange('first_name', e.target.value)}
 							style={{
 								width: '100%',
 								padding: '8px',
@@ -128,13 +151,19 @@ const UserProfileSection = ({ userData, onProfileUpdate, fullWidth = false }) =>
 						/>
 					</div>
 					<div style={{ marginBottom: '10px' }}>
-						<label style={{ display: 'block', marginBottom: '5px', fontWeight: 'bold' }}>
+						<label
+							style={{
+								display: 'block',
+								marginBottom: '5px',
+								fontWeight: 'bold',
+							}}
+						>
 							Фамилия:
 						</label>
 						<input
-							type="text"
+							type='text'
 							value={editData.last_name}
-							onChange={(e) => handleChange('last_name', e.target.value)}
+							onChange={e => handleChange('last_name', e.target.value)}
 							style={{
 								width: '100%',
 								padding: '8px',
@@ -145,13 +174,24 @@ const UserProfileSection = ({ userData, onProfileUpdate, fullWidth = false }) =>
 						/>
 					</div>
 					<div style={{ marginBottom: '15px' }}>
-						<label style={{ display: 'block', marginBottom: '5px', fontWeight: 'bold' }}>
+						<label
+							style={{
+								display: 'block',
+								marginBottom: '5px',
+								fontWeight: 'bold',
+							}}
+						>
 							Телефон:
 						</label>
 						<input
-							type="tel"
+							type='tel'
+							inputMode='numeric'
 							value={editData.phone_number}
-							onChange={(e) => handleChange('phone_number', e.target.value)}
+							onChange={e => {
+								// Оставляем только цифры и не более 11 штук
+								const val = e.target.value.replace(/\D/g, '').slice(0, 11)
+								handleChange('phone_number', val)
+							}}
 							style={{
 								width: '100%',
 								padding: '8px',
@@ -159,6 +199,7 @@ const UserProfileSection = ({ userData, onProfileUpdate, fullWidth = false }) =>
 								borderRadius: '5px',
 								fontSize: '14px',
 							}}
+							placeholder='79991234567'
 						/>
 					</div>
 					<div style={{ display: 'flex', gap: '10px' }}>
@@ -240,7 +281,7 @@ const UserProfileSection = ({ userData, onProfileUpdate, fullWidth = false }) =>
 				✅ Аккаунт подтвержден
 			</div>
 		</div>
-	);
-};
+	)
+}
 
-export default UserProfileSection;
+export default UserProfileSection

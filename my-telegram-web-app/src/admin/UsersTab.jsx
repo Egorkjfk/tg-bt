@@ -25,36 +25,36 @@ const UsersTab = ({ userData, openSchedulePage }) => {
 	const [bonusFineFormType, setBonusFineFormType] = useState(null)
 	const [bonusFineFormUser, setBonusFineFormUser] = useState(null)
 
-	const handleShowBonusForm = (user) => {
-		setBonusFineFormUser(user);
-		setBonusFineFormType('bonus');
-		setShowBonusFineForm(true);
-	};
+	const handleShowBonusForm = user => {
+		setBonusFineFormUser(user)
+		setBonusFineFormType('bonus')
+		setShowBonusFineForm(true)
+	}
 
-	const handleShowFineForm = (user) => {
-		setBonusFineFormUser(user);
-		setBonusFineFormType('fine');
-		setShowBonusFineForm(true);
-	};
+	const handleShowFineForm = user => {
+		setBonusFineFormUser(user)
+		setBonusFineFormType('fine')
+		setShowBonusFineForm(true)
+	}
 
 	const handleCloseBonusFineForm = () => {
-		setShowBonusFineForm(false);
-		setBonusFineFormUser(null);
-		setBonusFineFormType(null);
-	};
+		setShowBonusFineForm(false)
+		setBonusFineFormUser(null)
+		setBonusFineFormType(null)
+	}
 
 	const mqttContext = useContext(AdminMQTTContext)
-const { connected, messages, isAdmin } = mqttContext || {}
+	const { connected, messages, isAdmin } = mqttContext || {}
 
 	// Отладочная информация
 	useEffect(() => {
-	  console.log('🔧 UsersTab MQTT статус:', {
-	    connected,
-	    messagesCount: messages?.length,
-	    isAdmin,
-	    currentZoneId: mqttContext?.currentZoneId
-	  });
-	}, [connected, messages, isAdmin, mqttContext?.currentZoneId]);
+		console.log('🔧 UsersTab MQTT статус:', {
+			connected,
+			messagesCount: messages?.length,
+			isAdmin,
+			currentZoneId: mqttContext?.currentZoneId,
+		})
+	}, [connected, messages, isAdmin, mqttContext?.currentZoneId])
 
 	useEffect(() => {
 		const fetchAllUsers = async () => {
@@ -88,40 +88,43 @@ const { connected, messages, isAdmin } = mqttContext || {}
 
 	// Обрабатываем MQTT сообщения о новых пользователях (только для админов)
 	useEffect(() => {
-	  if (messages && messages.length > 0 && isAdmin) {
-	    const lastMessage = messages[messages.length - 1];
-	    
-	    console.log('📨 Проверка MQTT сообщения для админа:', lastMessage);
-	    
-	    if (lastMessage.type === 'user_notification') {
-	      console.log('🎯 Получено MQTT уведомление о новом пользователе:', lastMessage);
-	      
-	      const newUser = {
-	        id: lastMessage.user_id,
-	        telegram_id: lastMessage.telegram_id,
-	        username: lastMessage.username,
-	        first_name: lastMessage.first_name,
-	        last_name: lastMessage.last_name || '',
-	        phone_number: lastMessage.phone_number || '',
-	        confirmed: lastMessage.confirmed,
-	        created_at: lastMessage.created_at,
-	        is_admin: false
-	      };
-	      
-	      setAllUsers(prevUsers => {
-	        const userExists = prevUsers.some(user => user.id === newUser.id);
-	        if (!userExists) {
-	          console.log('➕ Добавляем нового пользователя в список:', newUser);
-	          const updatedUsers = [newUser, ...prevUsers];
-	          applyFiltersAndSorting(updatedUsers, filters, sortConfig);
-	          return updatedUsers;
-	        }
-	        console.log('⏩ Пользователь уже существует, пропускаем');
-	        return prevUsers;
-	      });
-	    }
-	  }
-	}, [messages, filters, sortConfig, isAdmin]);
+		if (messages && messages.length > 0 && isAdmin) {
+			const lastMessage = messages[messages.length - 1]
+
+			console.log('📨 Проверка MQTT сообщения для админа:', lastMessage)
+
+			if (lastMessage.type === 'user_notification') {
+				console.log(
+					'🎯 Получено MQTT уведомление о новом пользователе:',
+					lastMessage
+				)
+
+				const newUser = {
+					id: lastMessage.user_id,
+					telegram_id: lastMessage.telegram_id,
+					username: lastMessage.username,
+					first_name: lastMessage.first_name,
+					last_name: lastMessage.last_name || '',
+					phone_number: lastMessage.phone_number || '',
+					confirmed: lastMessage.confirmed,
+					created_at: lastMessage.created_at,
+					is_admin: false,
+				}
+
+				setAllUsers(prevUsers => {
+					const userExists = prevUsers.some(user => user.id === newUser.id)
+					if (!userExists) {
+						console.log('➕ Добавляем нового пользователя в список:', newUser)
+						const updatedUsers = [newUser, ...prevUsers]
+						applyFiltersAndSorting(updatedUsers, filters, sortConfig)
+						return updatedUsers
+					}
+					console.log('⏩ Пользователь уже существует, пропускаем')
+					return prevUsers
+				})
+			}
+		}
+	}, [messages, filters, sortConfig, isAdmin])
 
 	const applyFiltersAndSorting = (
 		usersToFilter = allUsers,
@@ -199,12 +202,12 @@ const { connected, messages, isAdmin } = mqttContext || {}
 	}
 
 	const handleScheduleUser = user => {
-			if (openSchedulePage) {
-				openSchedulePage(user);
-			} else {
-				window.location.hash = `schedule/${user.id}`;
-			}
+		if (openSchedulePage) {
+			openSchedulePage(user)
+		} else {
+			window.location.hash = `schedule/${user.id}`
 		}
+	}
 
 	const updateUserConfirmed = async (userId, currentConfirmed) => {
 		try {
@@ -299,15 +302,25 @@ const { connected, messages, isAdmin } = mqttContext || {}
 				padding: '0px',
 				margin: '0',
 				width: '100%',
-				overflow: 'hidden'
+				overflow: 'hidden',
 			}}
 		>
-			<div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px' }}>
+			<div
+				style={{
+					display: 'flex',
+					justifyContent: 'space-between',
+					alignItems: 'center',
+					marginBottom: '15px',
+				}}
+			>
 				<h3 style={{ margin: 0 }}>
 					📊 Все пользователи ({filteredUsers.length} из {allUsers.length})
 					{connected && (
-						<span style={{ fontSize: '12px', color: '#38a169', marginLeft: '10px' }}>
-							🔴 Live {isAdmin ? '(Admin)' : `(Zone ${mqttContext?.currentZoneId})`}
+						<span
+							style={{ fontSize: '12px', color: '#38a169', marginLeft: '10px' }}
+						>
+							🔴 Live{' '}
+							{isAdmin ? '(Admin)' : `(Zone ${mqttContext?.currentZoneId})`}
 						</span>
 					)}
 				</h3>
@@ -389,10 +402,6 @@ const { connected, messages, isAdmin } = mqttContext || {}
 						<option value='false'>Неподтвержденные</option>
 					</select>
 				</div>
-		
-			
-				
-				
 			</div>
 
 			{filteredUsers.length === 0 ? (
@@ -415,15 +424,15 @@ const { connected, messages, isAdmin } = mqttContext || {}
 							isLast={index === filteredUsers.length - 1}
 						/>
 					))}
-					
+
 					{/* Компонент формы добавления премии/штрафа */}
 					{showBonusFineForm && bonusFineFormUser && bonusFineFormType && (
 						<BonusFineForm
 							isOpen={showBonusFineForm}
 							onClose={handleCloseBonusFineForm}
-							onSubmit={(formData) => {
+							onSubmit={formData => {
 								// Можно добавить логику обновления списка пользователей или других данных
-								handleCloseBonusFineForm();
+								handleCloseBonusFineForm()
 							}}
 							type={bonusFineFormType}
 							user={bonusFineFormUser}
@@ -460,54 +469,64 @@ const { connected, messages, isAdmin } = mqttContext || {}
 		</div>
 	)
 }
-const UserCard = ({ user, index, onEdit, onSchedule, onUpdateConfirmed, openSchedulePage, onShowBonusForm, onShowFineForm, isLast }) => {
-	const [showBonusFineMenu, setShowBonusFineMenu] = useState(false);
-	const [menuPosition, setMenuPosition] = useState('bottom'); // 'bottom' или 'top'
-	const timeoutRef = useRef(null);
+const UserCard = ({
+	user,
+	index,
+	onEdit,
+	onSchedule,
+	onUpdateConfirmed,
+	openSchedulePage,
+	onShowBonusForm,
+	onShowFineForm,
+	isLast,
+}) => {
+	const [showBonusFineMenu, setShowBonusFineMenu] = useState(false)
+	const [menuPosition, setMenuPosition] = useState('bottom') // 'bottom' или 'top'
+	const timeoutRef = useRef(null)
 
 	// Определяем позицию меню для последнего пользователя
 	useEffect(() => {
 		if (isLast) {
-			setMenuPosition('top');
+			setMenuPosition('top')
 		} else {
-			setMenuPosition('bottom');
+			setMenuPosition('bottom')
 		}
-	}, [isLast]);
+	}, [isLast])
 
 	const handleMouseEnter = () => {
 		if (timeoutRef.current) {
-			clearTimeout(timeoutRef.current);
+			clearTimeout(timeoutRef.current)
 		}
-		setShowBonusFineMenu(true);
-	};
+		setShowBonusFineMenu(true)
+	}
 
 	const handleMouseLeave = () => {
 		// Задержка перед скрытием меню
 		timeoutRef.current = setTimeout(() => {
-			setShowBonusFineMenu(false);
-		}, 200); // 300ms = 0.3 секунды
-	};
+			setShowBonusFineMenu(false)
+		}, 200) // 300ms = 0.3 секунды
+	}
 
 	const handleMenuEnter = () => {
 		if (timeoutRef.current) {
-			clearTimeout(timeoutRef.current);
+			clearTimeout(timeoutRef.current)
 		}
-	};
+	}
 
 	const handleMenuLeave = () => {
 		timeoutRef.current = setTimeout(() => {
-			setShowBonusFineMenu(false);
-		}, 300);
-	};
+			setShowBonusFineMenu(false)
+		}, 300)
+	}
 
 	// Очищаем таймер при размонтировании
 	useEffect(() => {
 		return () => {
 			if (timeoutRef.current) {
-				clearTimeout(timeoutRef.current);
+				clearTimeout(timeoutRef.current)
 			}
-		};
-	}, []);
+		}
+	}, [])
 
 	return (
 		<div
@@ -517,7 +536,7 @@ const UserCard = ({ user, index, onEdit, onSchedule, onUpdateConfirmed, openSche
 				borderRadius: '8px',
 				marginBottom: '10px',
 				backgroundColor: index % 2 === 0 ? '#f7fafc' : 'white',
-				position: 'relative'
+				position: 'relative',
 			}}
 		>
 			<div style={{ display: 'flex', justifyContent: 'space-between' }}>
@@ -565,7 +584,14 @@ const UserCard = ({ user, index, onEdit, onSchedule, onUpdateConfirmed, openSche
 					)}
 				</span>
 			</div>
-			<div style={{ marginTop: '10px', display: 'flex', gap: '10px', position: 'relative' }}>
+			<div
+				style={{
+					marginTop: '10px',
+					display: 'flex',
+					gap: '10px',
+					position: 'relative',
+				}}
+			>
 				<button
 					onClick={() => onEdit(user)}
 					style={{
@@ -582,9 +608,9 @@ const UserCard = ({ user, index, onEdit, onSchedule, onUpdateConfirmed, openSche
 				<button
 					onClick={() => {
 						if (openSchedulePage) {
-							openSchedulePage(user);
+							openSchedulePage(user)
 						} else {
-							onSchedule(user);
+							onSchedule(user)
 						}
 					}}
 					style={{
@@ -598,12 +624,12 @@ const UserCard = ({ user, index, onEdit, onSchedule, onUpdateConfirmed, openSche
 				>
 					📅 Расписание
 				</button>
-				
+
 				{/* Выпадающий список Премия/Штраф */}
-				<div 
-					style={{ 
+				<div
+					style={{
 						position: 'relative',
-						display: 'inline-block'
+						display: 'inline-block',
 					}}
 					onMouseEnter={handleMouseEnter}
 					onMouseLeave={handleMouseLeave}
@@ -618,13 +644,13 @@ const UserCard = ({ user, index, onEdit, onSchedule, onUpdateConfirmed, openSche
 							cursor: 'pointer',
 							display: 'flex',
 							alignItems: 'center',
-							gap: '5px'
+							gap: '5px',
 						}}
 					>
 						🎁 Премия/Штраф
 						<span style={{ fontSize: '12px' }}>▼</span>
 					</button>
-					
+
 					{/* Выпадающее меню */}
 					{showBonusFineMenu && (
 						<div
@@ -635,11 +661,12 @@ const UserCard = ({ user, index, onEdit, onSchedule, onUpdateConfirmed, openSche
 								backgroundColor: 'white',
 								border: '1px solid #e2e8f0',
 								borderRadius: '8px',
-								boxShadow: '0 4px 6px -1px rgba(0,0,0,0.1), 0 2px 4px -1px rgba(0,0,0,0.06)',
+								boxShadow:
+									'0 4px 6px -1px rgba(0,0,0,0.1), 0 2px 4px -1px rgba(0,0,0,0.06)',
 								zIndex: 1000,
 								minWidth: '160px',
 								marginTop: menuPosition === 'bottom' ? '5px' : '0',
-								marginBottom: menuPosition === 'top' ? '5px' : '0'
+								marginBottom: menuPosition === 'top' ? '5px' : '0',
 							}}
 							onMouseEnter={handleMenuEnter}
 							onMouseLeave={handleMenuLeave}
@@ -658,7 +685,7 @@ const UserCard = ({ user, index, onEdit, onSchedule, onUpdateConfirmed, openSche
 									fontSize: '14px',
 									display: 'flex',
 									alignItems: 'center',
-									gap: '8px'
+									gap: '8px',
 								}}
 							>
 								✅ Добавить премию
@@ -677,7 +704,7 @@ const UserCard = ({ user, index, onEdit, onSchedule, onUpdateConfirmed, openSche
 									fontSize: '14px',
 									display: 'flex',
 									alignItems: 'center',
-									gap: '8px'
+									gap: '8px',
 								}}
 							>
 								❌ Добавить штраф
@@ -708,9 +735,8 @@ const UserCard = ({ user, index, onEdit, onSchedule, onUpdateConfirmed, openSche
 				)}
 			</div>
 		</div>
-	);
+	)
 }
-
 
 const EditUserModal = ({ user, onSave, onClose, userData }) => {
 	const [editedUser, setEditedUser] = useState({ ...user })
@@ -718,12 +744,23 @@ const EditUserModal = ({ user, onSave, onClose, userData }) => {
 	const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
 
 	const handleSave = async () => {
+		if (editedUser.phone_number && editedUser.phone_number.length !== 11) {
+			alert(
+				'⚠️ Номер телефона должен состоять ровно из 11 цифр (например, 79991234567)'
+			)
+			return // Прерываем выполнение функции
+		}
 		try {
-			const response = await fetch(`${API_URL}/update-user-confirmed`, {
+			// Теперь отправляем расширенный объект данных
+			const response = await fetch(`${API_URL}/update-user-full`, {
 				method: 'POST',
 				headers: { 'Content-Type': 'application/json' },
 				body: JSON.stringify({
 					user_id: editedUser.id,
+					first_name: editedUser.first_name,
+					last_name: editedUser.last_name,
+					username: editedUser.username,
+					phone_number: editedUser.phone_number,
 					confirmed: editedUser.confirmed,
 					admin_id: userData.id,
 					telegram_id: userData.telegram_id,
@@ -736,6 +773,7 @@ const EditUserModal = ({ user, onSave, onClose, userData }) => {
 			const result = await response.json()
 
 			if (result.status === 'success') {
+				alert('✅ Данные успешно сохранены')
 				onSave(editedUser)
 			} else {
 				throw new Error(result.message || 'Ошибка при обновлении пользователя')
@@ -759,7 +797,13 @@ const EditUserModal = ({ user, onSave, onClose, userData }) => {
 			return
 		}
 
-		if (!window.confirm(`Вы уверены, что хотите удалить пользователя ${user.first_name} ${user.last_name || ''}?\n\nЭто действие нельзя будет отменить!`)) {
+		if (
+			!window.confirm(
+				`Вы уверены, что хотите удалить пользователя ${user.first_name} ${
+					user.last_name || ''
+				}?\n\nЭто действие нельзя будет отменить!`
+			)
+		) {
 			return
 		}
 
@@ -823,78 +867,39 @@ const EditUserModal = ({ user, onSave, onClose, userData }) => {
 				}}
 			>
 				<h3>✏️ Редактирование пользователя</h3>
-				
+
 				{/* Предупреждение об удалении администратора */}
 				{user.is_admin && (
-					<div style={{
-						padding: '10px',
-						marginBottom: '15px',
-						backgroundColor: '#fed7d7',
-						border: '1px solid #fc8181',
-						borderRadius: '5px',
-						color: '#c53030'
-					}}>
-						⚠️ Этот пользователь является администратором. Удаление администраторов запрещено.
+					<div
+						style={{
+							padding: '10px',
+							marginBottom: '15px',
+							backgroundColor: '#fed7d7',
+							border: '1px solid #fc8181',
+							borderRadius: '5px',
+							color: '#c53030',
+						}}
+					>
+						⚠️ Этот пользователь является администратором. Удаление
+						администраторов запрещено.
 					</div>
 				)}
-				
+
 				{/* Предупреждение о попытке удалить себя */}
 				{user.id === userData.id && (
-					<div style={{
-						padding: '10px',
-						marginBottom: '15px',
-						backgroundColor: '#fed7d7',
-						border: '1px solid #fc8181',
-						borderRadius: '5px',
-						color: '#c53030'
-					}}>
+					<div
+						style={{
+							padding: '10px',
+							marginBottom: '15px',
+							backgroundColor: '#fed7d7',
+							border: '1px solid #fc8181',
+							borderRadius: '5px',
+							color: '#c53030',
+						}}
+					>
 						⚠️ Вы не можете удалить самого себя.
 					</div>
 				)}
-
-				<div style={{ marginBottom: '15px' }}>
-					<label
-						style={{
-							display: 'block',
-							marginBottom: '5px',
-							fontWeight: 'bold',
-						}}
-					>
-						ID:
-					</label>
-					<div
-						style={{
-							padding: '8px',
-							border: '1px solid #ddd',
-							borderRadius: '5px',
-							backgroundColor: '#f5f5f5',
-						}}
-					>
-						{editedUser.id}
-					</div>
-				</div>
-
-				<div style={{ marginBottom: '15px' }}>
-					<label
-						style={{
-							display: 'block',
-							marginBottom: '5px',
-							fontWeight: 'bold',
-						}}
-					>
-						Telegram ID:
-					</label>
-					<div
-						style={{
-							padding: '8px',
-							border: '1px solid #ddd',
-							borderRadius: '5px',
-							backgroundColor: '#f5f5f5',
-						}}
-					>
-						{editedUser.telegram_id}
-					</div>
-				</div>
 
 				<div style={{ marginBottom: '15px' }}>
 					<label
@@ -982,17 +987,21 @@ const EditUserModal = ({ user, onSave, onClose, userData }) => {
 						Телефон:
 					</label>
 					<input
-						type='text'
+						type='tel' // Меняем на tel для семантики
+						inputMode='numeric' // Открывает цифровую клавиатуру на смартфонах
 						value={editedUser.phone_number || ''}
-						onChange={e =>
-							setEditedUser({ ...editedUser, phone_number: e.target.value })
-						}
+						onChange={e => {
+							// Удаляем всё, что не является цифрой
+							const onlyNums = e.target.value.replace(/\D/g, '').slice(0, 11)
+							setEditedUser({ ...editedUser, phone_number: onlyNums })
+						}}
 						style={{
 							width: '100%',
 							padding: '8px',
 							border: '1px solid #ddd',
 							borderRadius: '5px',
 						}}
+						placeholder='Только цифры'
 					/>
 				</div>
 
@@ -1042,7 +1051,7 @@ const EditUserModal = ({ user, onSave, onClose, userData }) => {
 					>
 						💾 Сохранить
 					</button>
-					
+
 					{/* Кнопка удаления - показываем только если это не администратор и не сам себя */}
 					{!user.is_admin && user.id !== userData.id && (
 						<button
@@ -1060,7 +1069,7 @@ const EditUserModal = ({ user, onSave, onClose, userData }) => {
 								display: 'flex',
 								alignItems: 'center',
 								justifyContent: 'center',
-								gap: '5px'
+								gap: '5px',
 							}}
 						>
 							{isDeleting ? (
@@ -1068,13 +1077,11 @@ const EditUserModal = ({ user, onSave, onClose, userData }) => {
 									<span>⏳</span> Удаление...
 								</>
 							) : (
-								<>
-									🗑️ Удалить
-								</>
+								<>🗑️ Удалить</>
 							)}
 						</button>
 					)}
-					
+
 					<button
 						onClick={onClose}
 						style={{
@@ -1091,18 +1098,20 @@ const EditUserModal = ({ user, onSave, onClose, userData }) => {
 						❌ Отмена
 					</button>
 				</div>
-				
+
 				{/* Предупреждение о последствиях удаления */}
 				{!user.is_admin && user.id !== userData.id && (
-					<div style={{
-						marginTop: '15px',
-						padding: '10px',
-						backgroundColor: '#fffaf0',
-						border: '1px solid #dd6b20',
-						borderRadius: '5px',
-						color: '#c05621',
-						fontSize: '12px'
-					}}>
+					<div
+						style={{
+							marginTop: '15px',
+							padding: '10px',
+							backgroundColor: '#fffaf0',
+							border: '1px solid #dd6b20',
+							borderRadius: '5px',
+							color: '#c05621',
+							fontSize: '12px',
+						}}
+					>
 						⚠️ При удалении пользователя также будут удалены:
 						<ul style={{ margin: '5px 0 0 0', paddingLeft: '20px' }}>
 							<li>Все записи его расписания</li>
@@ -1116,6 +1125,5 @@ const EditUserModal = ({ user, onSave, onClose, userData }) => {
 		</div>
 	)
 }
-
 
 export default UsersTab

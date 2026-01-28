@@ -15,8 +15,6 @@ import (
 	"tg-web-app-bot/models"
 	"tg-web-app-bot/services"
 	"time"
-
-	
 )
 
 type HTTPHandlers struct {
@@ -71,7 +69,45 @@ func (h *HTTPHandlers) HandlePhoneUpdate(w http.ResponseWriter, r *http.Request)
 	log.Printf("✅ Номер телефона успешно обновлен для пользователя ID: %d", phoneData.UserID)
 }
 
+func (h *HTTPHandlers) HandleUpdateUserFull(w http.ResponseWriter, r *http.Request) {
+    var req struct {
+        UserID      int64  `json:"user_id"`
+        FirstName   string `json:"first_name"`
+        LastName    string `json:"last_name"`
+        Username    string `json:"username"`
+        PhoneNumber string `json:"phone_number"`
+        Confirmed   bool   `json:"confirmed"`
+        AdminID     int64  `json:"admin_id"`
+        TelegramID  int64  `json:"telegram_id"`
+    }
+    
+    if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+        http.Error(w, "Ошибка парсинга JSON", http.StatusBadRequest)
+        return
+    }
 
+    // Проверка прав (аналогично вашему коду)
+    requestingUser, err := h.userService.GetUser(req.TelegramID, req.AdminID)
+    if err != nil || requestingUser == nil {
+        http.Error(w, "Ошибка аутентификации", http.StatusUnauthorized)
+        return
+    }
+
+    if !requestingUser.IsAdmin && req.UserID != req.AdminID {
+        http.Error(w, "Недостаточно прав", http.StatusForbidden)
+        return
+    }
+
+    // Вызов сервиса
+    err = h.userService.UpdateUserFull(req.UserID, req.FirstName, req.LastName, req.Username, req.PhoneNumber, req.Confirmed)
+    if err != nil {
+        http.Error(w, "Ошибка обновления данных", http.StatusInternalServerError)
+        return
+    }
+
+    w.Header().Set("Content-Type", "application/json")
+    json.NewEncoder(w).Encode(map[string]string{"status": "success", "message": "Данные успешно сохранены"})
+}
 
 
 // HandleGetUser - поиск пользователя по ID и/или Telegram ID  
@@ -762,11 +798,12 @@ func (h *HTTPHandlers) HandleDeleteChecklist(w http.ResponseWriter, r *http.Requ
 // HandleCreateChecklist - создание нового чеклиста
 func (h *HTTPHandlers) HandleCreateChecklist(w http.ResponseWriter, r *http.Request) {
     var requestData struct {
-        ZoneID      int64  `json:"zone_id"`
-        Description string `json:"description"`
-        AdminID     int64  `json:"admin_id"`
-        AdminTgId   int64  `json:"telegram_id"`
-        Important   bool   `json:"important"`
+        ZoneID      int64   `json:"zone_id"`
+        Description string  `json:"description"`
+        AdminID     int64   `json:"admin_id"`
+        AdminTgId   int64   `json:"telegram_id"`
+        Important   bool    `json:"important"`
+        Date        string  `json:"date,omitempty"`
     }
     
     decoder := json.NewDecoder(r.Body)
@@ -776,12 +813,6 @@ func (h *HTTPHandlers) HandleCreateChecklist(w http.ResponseWriter, r *http.Requ
         http.Error(w, "Ошибка парсинга JSON", http.StatusBadRequest)
         return
     }
-
-    log.Printf("➕ Получен запрос на создание чеклиста:")
-    log.Printf("📍 ZoneID: %d", requestData.ZoneID)
-    log.Printf("📝 Description: %s", requestData.Description)
-    log.Printf("👤 AdminID: %d", requestData.AdminID)
-    log.Printf("👤 AdminTgId: %d", requestData.AdminTgId)
 
     // Проверяем, что пользователь является админом
     adminUser, err := h.userService.GetUser(requestData.AdminTgId, requestData.AdminID)
@@ -797,8 +828,22 @@ func (h *HTTPHandlers) HandleCreateChecklist(w http.ResponseWriter, r *http.Requ
         return
     }
 
+    // Создаем структуру чеклиста
+    checklist := &models.Checklist{
+        ZoneID:      requestData.ZoneID,
+        Description: requestData.Description,
+        AdminID:     &requestData.AdminID,
+        Important:   requestData.Important,
+    }
+    
+    // Если передана дата, парсим её
+    if requestData.Date != "" {
+        log.Printf("❌ ______________________________________________________________")
+        checklist.Date = &requestData.Date
+    }
+
     // Создаем чеклист
-    err = h.userService.CreateChecklist(requestData.ZoneID, requestData.Description, requestData.AdminID, requestData.Important)
+    err = h.userService.CreateChecklist(checklist)
     if err != nil {
         log.Printf("❌ Ошибка создания чеклиста: %v", err)
         http.Error(w, "Ошибка создания чеклиста", http.StatusInternalServerError)
@@ -808,13 +853,13 @@ func (h *HTTPHandlers) HandleCreateChecklist(w http.ResponseWriter, r *http.Requ
     response := map[string]interface{}{
         "status":  "success",
         "message": "Чеклист успешно создан",
+        "checklist_id": checklist.ID,
     }
 
     w.Header().Set("Content-Type", "application/json")
     json.NewEncoder(w).Encode(response)
     log.Printf("✅ Чеклист успешно создан для зоны ID=%d", requestData.ZoneID)
 }
-
 
 // HandleCreateAutoChecklist - создание нового авто-чеклиста
 func (h *HTTPHandlers) HandleCreateAutoChecklist(w http.ResponseWriter, r *http.Request) {
@@ -1966,11 +2011,12 @@ func (h *HTTPHandlers) HandleAddChecklistPhoto(w http.ResponseWriter, r *http.Re
 }
 
 
-// HandleCalculateSalary - расчет заработной платы за месяц
+// HandleCalculateSalary - расчет заработной платы за период
 func (h *HTTPHandlers) HandleCalculateSalary(w http.ResponseWriter, r *http.Request) {
     var requestData struct {
         WorkerID   int64  `json:"worker_id"`
-        Month      string `json:"month"` // формат "YYYY-MM"
+        StartDate  string `json:"start_date"` // формат "YYYY-MM-DD"
+        EndDate    string `json:"end_date"`   // формат "YYYY-MM-DD"
         AdminID    int64  `json:"admin_id"`
         TelegramID int64  `json:"telegram_id"`
     }
@@ -1985,7 +2031,7 @@ func (h *HTTPHandlers) HandleCalculateSalary(w http.ResponseWriter, r *http.Requ
 
     log.Printf("💰 Получен запрос на расчет зарплаты:")
     log.Printf("👤 WorkerID: %d", requestData.WorkerID)
-    log.Printf("📅 Месяц: %s", requestData.Month)
+    log.Printf("📅 Период: с %s по %s", requestData.StartDate, requestData.EndDate)
     log.Printf("👤 AdminID: %d", requestData.AdminID)
     log.Printf("👤 TelegramID: %d", requestData.TelegramID)
 
@@ -2007,7 +2053,7 @@ func (h *HTTPHandlers) HandleCalculateSalary(w http.ResponseWriter, r *http.Requ
     }
 
     // Вычисляем зарплату
-    salaryData, err := h.userService.CalculateSalary(requestData.WorkerID, requestData.Month)
+    salaryData, err := h.userService.CalculateSalary(requestData.WorkerID, requestData.StartDate, requestData.EndDate)
     if err != nil {
         log.Printf("❌ Ошибка расчета зарплаты: %v", err)
         http.Error(w, "Ошибка расчета зарплаты", http.StatusInternalServerError)
@@ -2021,12 +2067,14 @@ func (h *HTTPHandlers) HandleCalculateSalary(w http.ResponseWriter, r *http.Requ
 
     w.Header().Set("Content-Type", "application/json")
     json.NewEncoder(w).Encode(response)
-    log.Printf("✅ Расчет зарплаты отправлен для работника ID=%d за месяц %s", requestData.WorkerID, requestData.Month)
+    log.Printf("✅ Расчет зарплаты отправлен для работника ID=%d за период %s - %s", requestData.WorkerID, requestData.StartDate, requestData.EndDate)
 }
-// HandleGetAllSalaries - получение зарплат всех сотрудников для администратора
+
+// HandleGetAllSalaries - получение зарплат всех сотрудников для администратора за период
 func (h *HTTPHandlers) HandleGetAllSalaries(w http.ResponseWriter, r *http.Request) {
     var requestData struct {
-        Month      string `json:"month"` // формат "YYYY-MM"
+        StartDate  string `json:"start_date"` // формат "YYYY-MM-DD"
+        EndDate    string `json:"end_date"`   // формат "YYYY-MM-DD"
         AdminID    int64  `json:"admin_id"`
         TelegramID int64 `json:"telegram_id"`
     }
@@ -2040,7 +2088,7 @@ func (h *HTTPHandlers) HandleGetAllSalaries(w http.ResponseWriter, r *http.Reque
     }
 
     log.Printf("💰 Получен запрос на получение зарплат всех сотрудников:")
-    log.Printf("📅 Месяц: %s", requestData.Month)
+    log.Printf("📅 Период: с %s по %s", requestData.StartDate, requestData.EndDate)
     log.Printf("👤 AdminID: %d", requestData.AdminID)
     log.Printf("👤 TelegramID: %d", requestData.TelegramID)
 
@@ -2059,7 +2107,7 @@ func (h *HTTPHandlers) HandleGetAllSalaries(w http.ResponseWriter, r *http.Reque
     }
 
     // Получаем зарплаты всех сотрудников
-    allSalaries, totalAmount, err := h.userService.CalculateAllSalaries(requestData.Month)
+    allSalaries, totalAmount, err := h.userService.CalculateAllSalaries(requestData.StartDate, requestData.EndDate)
     if err != nil {
         log.Printf("❌ Ошибка получения зарплат всех сотрудников: %v", err)
         http.Error(w, "Ошибка получения зарплат всех сотрудников", http.StatusInternalServerError)
@@ -2074,8 +2122,7 @@ func (h *HTTPHandlers) HandleGetAllSalaries(w http.ResponseWriter, r *http.Reque
 
     w.Header().Set("Content-Type", "application/json")
     json.NewEncoder(w).Encode(response)
-    log.Printf("✅ Зарплаты всех сотрудников отправлены за месяц %s, общая сумма: %f", requestData.Month, totalAmount)
-
+    log.Printf("✅ Зарплаты всех сотрудников отправлены за период %s - %s, общая сумма: %f", requestData.StartDate, requestData.EndDate, totalAmount)
 }
 
 // HandleDeleteSchedule - удаление расписания по ID
@@ -2093,11 +2140,6 @@ func (h *HTTPHandlers) HandleDeleteSchedule(w http.ResponseWriter, r *http.Reque
         http.Error(w, "Ошибка парсинга JSON", http.StatusBadRequest)
         return
     }
-
-    log.Printf("🗑️ Получен запрос на удаление расписания:")
-    log.Printf("📋 ScheduleID: %d", requestData.ScheduleID)
-    log.Printf("👤 AdminID: %d", requestData.AdminID)
-    log.Printf("👤 AdminTgId: %d", requestData.AdminTgId)
 
     // Проверяем, что пользователь является админом
     adminUser, err := h.userService.GetUser(requestData.AdminTgId, requestData.AdminID)
@@ -2119,60 +2161,6 @@ func (h *HTTPHandlers) HandleDeleteSchedule(w http.ResponseWriter, r *http.Reque
         log.Printf("❌ Ошибка получения расписания: %v", err)
         http.Error(w, "Расписание не найдено", http.StatusNotFound)
         return
-    }
-
-    // Проверяем, что дата расписания не ранее текущей
-    currentDate := time.Now().Format("2006-01-02")
-
-// Преобразуем строки в time.Time
-// Обработка даты в формате "2025-11-24T00:00:00Z" или "2025-11-24"
-if len(schedule.Date) > 10 {
-    scheduleTime, err := time.Parse(time.RFC3339, schedule.Date)
-    if err != nil {
-        log.Printf("❌ Ошибка парсинга даты расписания: %v", err)
-        http.Error(w, "Неверный формат даты расписания", http.StatusBadRequest)
-        return
-    }
-    
-    // Получаем текущую дату без времени (только дата)
-    currentDateOnly := time.Now().Format("2006-01-02")
-    currentTime, err := time.Parse("2006-01-02", currentDateOnly)
-    if err != nil {
-        log.Printf("❌ Ошибка парсинга текущей даты: %v", err)
-        http.Error(w, "Внутренняя ошибка сервера", http.StatusInternalServerError)
-        return
-    }
-    
-    // Сравниваем только даты (без времени)
-    if scheduleTime.Year() < currentTime.Year() ||
-        (scheduleTime.Year() == currentTime.Year() && scheduleTime.YearDay() < currentTime.YearDay()) {
-            log.Printf("❌ Невозможно удалить расписание с датой %s, которая ранее текущей даты %s",
-                schedule.Date, currentDateOnly)
-            http.Error(w, "Невозможно удалить расписание с датой, которая ранее текущей", http.StatusBadRequest)
-            return
-        }
-    } else { // Если дата в формате "2025-11-24"
-        scheduleTime, err := time.Parse("2006-01-02", schedule.Date)
-        if err != nil {
-            log.Printf("❌ Ошибка парсинга даты расписания: %v", err)
-            http.Error(w, "Неверный формат даты расписания", http.StatusBadRequest)
-            return
-        }
-        
-        currentTime, err := time.Parse("2006-01-02", currentDate)
-        if err != nil {
-            log.Printf("❌ Ошибка парсинга текущей даты: %v", err)
-            http.Error(w, "Внутренняя ошибка сервера", http.StatusInternalServerError)
-            return
-        }
-        
-        // Сравниваем time.Time
-        if scheduleTime.Before(currentTime) {
-            log.Printf("❌ Невозможно удалить расписание с датой %s, которая ранее текущей даты %s",
-                schedule.Date, currentDate)
-            http.Error(w, "Невозможно удалить расписание с датой, которая ранее текущей", http.StatusBadRequest)
-            return
-        }
     }
 
     // Удаляем расписание
@@ -2750,3 +2738,103 @@ func (h *HTTPHandlers) HandleDeleteFine(w http.ResponseWriter, r *http.Request) 
     json.NewEncoder(w).Encode(response)
 }
 
+// HandleGetAllChecklistsWithPhotos получает все чек-листы с фотографиями
+func (h *HTTPHandlers) HandleGetAllChecklistsWithPhotos(w http.ResponseWriter, r *http.Request) {
+    // Проверяем метод запроса
+    if r.Method != http.MethodGet {
+        http.Error(w, "Метод не поддерживается", http.StatusMethodNotAllowed)
+        return
+    }
+
+    // Создаем массив для чек-листов
+    var checklists []*models.Checklist
+    
+    // Вызываем сервис для получения чек-листов с фото
+    err := h.userService.GetAllChecklistsWithPhotos(&checklists)
+    if err != nil {
+        log.Printf("❌ Ошибка получения чек-листов с фото: %v", err)
+        response := map[string]interface{}{
+            "status":  "error",
+            "message": "Ошибка получения чек-листов",
+            "error":   err.Error(),
+        }
+        w.Header().Set("Content-Type", "application/json")
+        w.WriteHeader(http.StatusInternalServerError)
+        json.NewEncoder(w).Encode(response)
+        return
+    }
+
+    // Формируем успешный ответ
+    response := map[string]interface{}{
+        "status":    "success",
+        "message":   "Чек-листы с фото успешно получены",
+        "count":     len(checklists),
+        "checklists": checklists,
+    }
+
+    w.Header().Set("Content-Type", "application/json")
+    w.WriteHeader(http.StatusOK)
+    json.NewEncoder(w).Encode(response)
+    
+    log.Printf("✅ Успешно отправлено %d чек-листов с фото", len(checklists))
+}
+
+
+// HandleDeleteChecklistsByIDs обрабатывает массовое удаление чек-листов
+func (h *HTTPHandlers) HandleDeleteChecklistsByIDs(w http.ResponseWriter, r *http.Request) {
+    var requestData struct {
+        ChecklistIDs []int64 `json:"checklist_ids"`
+        AdminID      int64   `json:"admin_id"`
+        TelegramID   int64   `json:"telegram_id"`
+    }
+    
+    decoder := json.NewDecoder(r.Body)
+    err := decoder.Decode(&requestData)
+    if err != nil {
+        log.Printf("❌ Ошибка парсинга JSON: %v", err)
+        http.Error(w, "Ошибка парсинга JSON", http.StatusBadRequest)
+        return
+    }
+    
+    // Проверяем, что пользователь является админом
+    adminUser, err := h.userService.GetUser(requestData.TelegramID, requestData.AdminID)
+    if err != nil || adminUser == nil {
+        log.Printf("❌ Ошибка получения пользователя: %v", err)
+        http.Error(w, "Ошибка аутентификации", http.StatusUnauthorized)
+        return
+    }
+    if !adminUser.IsAdmin {
+        log.Printf("❌ Пользователь не является администратором")
+        http.Error(w, "Недостаточно прав", http.StatusForbidden)
+        return
+    }
+    
+    // Проверяем, что переданы ID
+    if len(requestData.ChecklistIDs) == 0 {
+        log.Printf("❌ Не указаны ID чек-листов для удаления")
+        http.Error(w, "Не указаны ID чек-листов", http.StatusBadRequest)
+        return
+    }
+    
+    // Выполняем удаление
+    err = h.userService.DeleteChecklistsByIDs(requestData.ChecklistIDs)
+    if err != nil {
+        log.Printf("❌ Ошибка удаления чек-листов: %v", err)
+        http.Error(w, "Ошибка удаления чек-листов", http.StatusInternalServerError)
+        return
+    }
+    
+    // Формируем успешный ответ
+    response := map[string]interface{}{
+        "status":  "success",
+        "message": fmt.Sprintf("Успешно удалено %d чек-листов", len(requestData.ChecklistIDs)),
+        "deleted_count": len(requestData.ChecklistIDs),
+    }
+    
+    w.Header().Set("Content-Type", "application/json")
+    w.WriteHeader(http.StatusOK)
+    json.NewEncoder(w).Encode(response)
+    
+    log.Printf("✅ Админ %s (%d) удалил %d чек-листов", 
+        adminUser.Username, adminUser.ID, len(requestData.ChecklistIDs))
+}

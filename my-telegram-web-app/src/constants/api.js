@@ -33,27 +33,29 @@ export const API_ENDPOINTS = {
 	DROP_ZONE: `${API_BASE_URL}/api/drop-zone`,
 	DELETE_SCHEDULE: `${API_BASE_URL}/api/delete-schedule`,
 	UPDATE_CHECKLIST_DESCRIPTION: `${API_BASE_URL}/api/update-checklist-description`,
-	 DELETE_CHECKLIST: `${API_BASE_URL}/api/delete-checklist`,
-	 UPDATE_AUTO_CHECKLIST: `${API_BASE_URL}/api/update-auto-checklist`,
-	 
-	 	 UPDATE_CHECKLIST_STATUS: `${API_BASE_URL}/api/update-checklist-status`,
-	 DROP_USER: `${API_BASE_URL}/api/delete-user`,
+	DELETE_CHECKLIST: `${API_BASE_URL}/api/delete-checklist`,
+	UPDATE_AUTO_CHECKLIST: `${API_BASE_URL}/api/update-auto-checklist`,
 
-// Шаблоны штрафов
+	UPDATE_CHECKLIST_STATUS: `${API_BASE_URL}/api/update-checklist-status`,
+	DROP_USER: `${API_BASE_URL}/api/delete-user`,
+
+	DELETE_CHECKLISTS: `${API_BASE_URL}/api/delete-checklists`,
+
+	// Шаблоны штрафов
 	GET_ALL_FINE_TEMPLATES: `${API_BASE_URL}/api/get-all-fine-templates`,
 	CREATE_FINE_TEMPLATE: `${API_BASE_URL}/api/create-fine-template`,
 	DELETE_FINE_TEMPLATE: `${API_BASE_URL}/api/delete-fine-template`,
-	
+
 	// Шаблоны премий
 	GET_ALL_BONUS_TEMPLATES: `${API_BASE_URL}/api/get-all-bonus-templates`,
 	CREATE_BONUS_TEMPLATE: `${API_BASE_URL}/api/create-bonus-template`,
 	DELETE_BONUS_TEMPLATE: `${API_BASE_URL}/api/delete-bonus-template`,
-	
+
 	// Премии пользователей
 	GET_USER_BONUSES: `${API_BASE_URL}/api/get-user-bonuses`,
 	CREATE_BONUS: `${API_BASE_URL}/api/create-bonus`,
 	DELETE_BONUS: `${API_BASE_URL}/api/delete-bonus`,
-	
+
 	// Штрафы пользователей
 	GET_USER_FINES: `${API_BASE_URL}/api/get-user-fines`,
 	CREATE_FINE: `${API_BASE_URL}/api/create-fine`,

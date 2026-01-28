@@ -2,6 +2,7 @@
 package services
 
 import (
+	"errors"
 	"fmt"
 	"log"
 	"math"
@@ -89,6 +90,10 @@ func (s *UserService) GetOrCreateUser(telegramID int64, username, firstName, las
 // UpdateUserPhone обновляет номер телефона пользователя
 func (s *UserService) UpdateUserPhone(userID int64,telegramID int64, phoneNumber string) error {
 	return s.userRepo.UpdateUserPhone(userID, telegramID, phoneNumber)
+}
+
+func (s *UserService) UpdateUserFull(userID int64, firstName, lastName, username, phoneNumber string, confirmed bool) error {
+    return s.userRepo.UpdateUserFull(userID, firstName, lastName, username, phoneNumber, confirmed)
 }
 
 func (s *UserService) ConfirmUser(telegramID int64) error {
@@ -290,21 +295,23 @@ func (s *UserService) UpdateChecklistStatus(checklist *models.Checklist) error {
 }
 
 // CreateChecklist создает новый чеклист
-func (s *UserService) CreateChecklist(zoneID int64, description string, adminID int64, important bool) error {
-    checklist := &models.Checklist{
-        ZoneID:      zoneID,
-        Description: description,
-        AdminID:     &adminID,
-        Important:   important,
-        // Date, Status, Confirmed, IssueTime - устанавливаются автоматически в БД
-    }
+func (s *UserService) CreateChecklist(checklist *models.Checklist) error {
     
+    originalDate := checklist.Date
     err := s.userRepo.CreateChecklist(checklist)
     if err != nil {
         return err
     }
+    if originalDate != nil {
+        log.Printf("____________________%s",originalDate)
+        return nil
+    }
     
-    // Публикуем сообщение в MQTT топик для зоны
+
+    currentDateStr := time.Now().Format("2006-01-02")
+
+    
+    // Публикуем сообщение в MQTT топик для зоны (только для сегодняшней даты)
     if s.mqttService != nil {
         err = s.mqttService.PublishChecklistMessage(checklist)
         if err != nil {
@@ -312,26 +319,24 @@ func (s *UserService) CreateChecklist(zoneID int64, description string, adminID 
         }
     }
     
-    // Получаем текущую дату
-    currentDate := time.Now().Format("2006-01-02")
-    
     // Получаем работника, назначенного на эту зону в текущий день
-    workers, err := s.GetWorkerByZoneID(zoneID, currentDate)
+    workers, err := s.GetWorkerByZoneID(checklist.ZoneID, currentDateStr)
     if err != nil {
-        log.Printf("⚠️ Ошибка получения работника для зоны %d: %v", zoneID, err)
+        log.Printf("⚠️ Ошибка получения работника для зоны %d: %v", checklist.ZoneID, err)
         return nil // Не возвращаем ошибку, так как чек-лист уже создан
     }
     
     if workers == nil || len(workers) == 0 {
-        log.Printf("⚠️ Работники не найдены для зоны %d на дату %s", zoneID, currentDate)
+        log.Printf("⚠️ Работники не найдены для зоны %d на дату %s", checklist.ZoneID, currentDateStr)
         return nil // Не возвращаем ошибку, так как чек-лист уже создан
     }
     
-    // Отправляем уведомление всем работникам
+    // Отправляем уведомление всем работникам (только для сегодняшней даты)
     for _, worker := range workers {
         // Отправляем уведомление работнику, если у него есть chat_id
         if worker.ChatID != nil {
-            message := fmt.Sprintf("📋 Новый чек-лист для выполнения:\n\nЗона: %d\nОписание: %s\n\nПожалуйста, проверьте задание в веб-приложении.", zoneID, description)
+            message := fmt.Sprintf("📋 Новый чек-лист для выполнения:\n\nЗона: %d\nОписание: %s\n\nПожалуйста, проверьте задание в веб-приложении.", 
+                checklist.ZoneID, checklist.Description)
             err = s.SendTelegramNotification(*worker.ChatID, message)
             if err != nil {
                 log.Printf("⚠️ Ошибка отправки уведомления работнику %d: %v", worker.ID, err)
@@ -383,6 +388,7 @@ func (s *UserService) DeleteChecklist(checklistID int64) error {
         return err
     }
 
+    s.DeletePhotoFilePhotoPath(checklist.Photo)
     // Удаляем чеклист из базы данных
     err = s.userRepo.DeleteChecklist(checklistID)
     if err != nil {
@@ -591,23 +597,23 @@ func (s *UserService) GetSchedulesForDate(date string) ([]*models.Schedule, erro
     return s.userRepo.GetSchedulesForDate(date)
 }
 
-// CalculateSalary рассчитывает заработную плату за указанный месяц с учетом штрафов и премий
-func (s *UserService) CalculateSalary(workerID int64, month string) (map[string]interface{}, error) {
-    schedules, err := s.userRepo.GetWorkerMonthlySchedule(workerID, month)
+// CalculateSalary рассчитывает заработную плату за указанный период с учетом штрафов и премий
+func (s *UserService) CalculateSalary(workerID int64, startDate, endDate string) (map[string]interface{}, error) {
+    schedules, err := s.userRepo.GetWorkerScheduleByPeriod(workerID, startDate, endDate)
     if err != nil {
         return nil, err
     }
 
-    // Получаем штрафы и премии за указанный месяц
-    fines, err := s.userRepo.GetUserFines(workerID, month)
+    // Получаем штрафы и премии за указанный период
+    fines, err := s.userRepo.GetUserFinesByPeriod(workerID, startDate, endDate)
     if err != nil {
-        log.Printf("⚠️ Ошибка получения штрафов для пользователя %d за месяц %s: %v", workerID, month, err)
+        log.Printf("⚠️ Ошибка получения штрафов для пользователя %d за период %s - %s: %v", workerID, startDate, endDate, err)
         fines = []*models.Fine{} // продолжаем с пустым списком
     }
 
-    bonuses, err := s.userRepo.GetUserBonuses(workerID, month)
+    bonuses, err := s.userRepo.GetUserBonusesByPeriod(workerID, startDate, endDate)
     if err != nil {
-        log.Printf("⚠️ Ошибка получения премий для пользователя %d за месяц %s: %v", workerID, month, err)
+        log.Printf("⚠️ Ошибка получения премий для пользователя %d за период %s - %s: %v", workerID, startDate, endDate, err)
         bonuses = []*models.Bonus{} // продолжаем с пустым списком
     }
 
@@ -728,7 +734,9 @@ func (s *UserService) CalculateSalary(workerID int64, month string) (map[string]
 
     result := map[string]interface{}{
         "worker_id":           workerID,
-        "month":               month,
+        "period":              fmt.Sprintf("%s - %s", startDate, endDate),
+        "start_date":          startDate,
+        "end_date":            endDate,
         "shifts":              shifts,
         "total_planned_hours": roundToHalf(totalPlannedHours),
         "total_actual_hours":  roundToHalf(totalActualHours),
@@ -751,6 +759,53 @@ func (s *UserService) CalculateSalary(workerID int64, month string) (map[string]
     }
 
     return result, nil
+}
+
+// CalculateAllSalaries рассчитывает заработную плату за указанный период для всех сотрудников
+func (s *UserService) CalculateAllSalaries(startDate, endDate string) ([]map[string]interface{}, float64, error) {
+    // Сначала получаем всех пользователей
+    var allUsers []*models.User
+    err := s.GetAllUser(&allUsers)
+    if err != nil {
+        return nil, 0, err
+    }
+
+    var allSalaries []map[string]interface{}
+    var totalAmount float64 = 0
+
+    // Для каждого пользователя, который не является администратором, рассчитываем зарплату
+    for _, user := range allUsers {
+        // Пропускаем администраторов
+        if user.IsAdmin {
+            continue
+        }
+
+        // Рассчитываем зарплату для пользователя
+        salaryData, err := s.CalculateSalary(user.ID, startDate, endDate)
+        if err != nil {
+            log.Printf("❌ Ошибка расчета зарплаты для пользователя %d: %v", user.ID, err)
+            // Продолжаем обработку других пользователей
+            continue
+        }
+
+        // Добавляем информацию о пользователе к данным о зарплате
+        salaryData["user_info"] = map[string]interface{}{
+            "id":         user.ID,
+            "telegram_id": user.TelegramID,
+            "username":   user.Username,
+            "first_name": user.FirstName,
+            "last_name":  user.LastName,
+        }
+
+        allSalaries = append(allSalaries, salaryData)
+        
+        // Добавляем итоговую зарплату к общей сумме (с учетом штрафов и премий)
+        if finalSalary, ok := salaryData["final_salary"].(float64); ok {
+            totalAmount += finalSalary
+        }
+    }
+
+    return allSalaries, totalAmount, nil
 }
 
 // parseTimeString парсит строку времени в формате "HH:MM:SS" или "HH:MM"
@@ -792,53 +847,6 @@ func calculateHours(startTime, endTime string) float64 {
     hours := duration.Hours()
     
     return hours
-}
-
-// CalculateAllSalaries рассчитывает заработную плату за указанный месяц для всех сотрудников
-func (s *UserService) CalculateAllSalaries(month string) ([]map[string]interface{}, float64, error) {
-    // Сначала получаем всех пользователей
-    var allUsers []*models.User
-    err := s.GetAllUser(&allUsers)
-    if err != nil {
-        return nil, 0, err
-    }
-
-    var allSalaries []map[string]interface{}
-    var totalAmount float64 = 0
-
-    // Для каждого пользователя, который не является администратором, рассчитываем зарплату
-    for _, user := range allUsers {
-        // Пропускаем администраторов
-        if user.IsAdmin {
-            continue
-        }
-
-        // Рассчитываем зарплату для пользователя
-        salaryData, err := s.CalculateSalary(user.ID, month)
-        if err != nil {
-            log.Printf("❌ Ошибка расчета зарплаты для пользователя %d: %v", user.ID, err)
-            // Продолжаем обработку других пользователей
-            continue
-        }
-
-        // Добавляем информацию о пользователе к данным о зарплате
-        salaryData["user_info"] = map[string]interface{}{
-            "id":         user.ID,
-            "telegram_id": user.TelegramID,
-            "username":   user.Username,
-            "first_name": user.FirstName,
-            "last_name":  user.LastName,
-        }
-
-        allSalaries = append(allSalaries, salaryData)
-        
-        // Добавляем итоговую зарплату к общей сумме (с учетом штрафов и премий)
-        if finalSalary, ok := salaryData["final_salary"].(float64); ok {
-            totalAmount += finalSalary
-        }
-    }
-
-    return allSalaries, totalAmount, nil
 }
 
 // adjustTimeFormat преобразует строку времени в формат с фиктивной датой для корректного сравнения
@@ -979,6 +987,11 @@ func (s *UserService) ExecuteHourlyChecklistsCopy() error {
     return s.userRepo.ExecuteHourlyChecklistsCopy()
 }
 
+// ExecuteHourlyChecklistsCopy выполняет копирование автосписков каждый час
+func (s *UserService) GetAllChecklistsWithPhotos(checklichecklists *[]*models.Checklist) error {
+    return s.userRepo.GetAllChecklistsWithPhotos(checklichecklists)
+}
+
 func (s *UserService) DeleteSchedule(scheduleID int64, UserID int64, Data string) error {
     err := s.userRepo.DeleteSchedule(scheduleID)
     if err != nil {
@@ -1018,4 +1031,102 @@ func (s *UserService) ExecuteAutoCompleteShifts() error {
     return s.userRepo.AutoCompleteEndedShifts()
 }
 
+
+
+
+
+
+// DeletePhotoFile удаляет файл фотографии по указанному пути
+func (s *UserService) DeletePhotoFile(photoPath string) error {
+    if photoPath == "" {
+        return errors.New("путь к фото не указан")
+    }
+    // Получаем абсолютный путь
+    exePath, err := os.Executable()
+    if err != nil {
+        log.Printf("❌ Не удалось получить путь к исполняемому файлу: %v", err)
+        return fmt.Errorf("ошибка получения пути: %v", err)
+    }
+    exeDir := filepath.Dir(exePath)
+
+    
+    // Или другой путь к вашим файлам
+    fullPath := filepath.Join(exeDir, "/public", photoPath)
+    log.Printf("⚠️ ________________________________: %s", fullPath)
+    // Удаляем файл
+    err = os.Remove(fullPath)
+    if err != nil {
+        // Если файл не найден, не считаем это ошибкой (может быть уже удален)
+        if os.IsNotExist(err) {
+            log.Printf("⚠️ Файл уже удален: %s", fullPath)
+            return nil
+        }
+        return fmt.Errorf("ошибка удаления файла %s: %v", fullPath, err)
+    }
+    
+    log.Printf("✅ Файл удален: %s", fullPath)
+    return nil
+}
+
+// GetChecklistsByIDs возвращает чек-листы по массиву ID
+func (s *UserService) GetChecklistsByIDs(checklistIDs []int64) ([]*models.Checklist, error) {
+    if len(checklistIDs) == 0 {
+        return []*models.Checklist{}, nil
+    }
+    
+    var checklists []*models.Checklist
+    err := s.userRepo.GetChecklistsByIDs(&checklists, checklistIDs)
+    if err != nil {
+        return nil, err
+    }
+    
+    return checklists, nil
+}
+
+// DeleteChecklistsByIDs удаляет чек-листы по массиву ID
+func (s *UserService) DeleteChecklistsByIDs(checklistIDs []int64) error {
+    if len(checklistIDs) == 0 {
+        return errors.New("не указаны ID чек-листов для удаления")
+    }
+    
+    // Получаем чек-листы, чтобы получить пути к фото
+    checklists, err := s.GetChecklistsByIDs(checklistIDs)
+    if err != nil {
+        log.Printf("❌ Ошибка получения чек-листов: %v", err)
+        // Продолжаем удаление даже если не получили фото
+    }
+    
+    // Удаляем все фотографии
+    for _, checklist := range checklists {
+        if checklist.Photo != "" {
+            // Разделяем строку с фото (могут быть несколько через запятую)
+           err := s.DeletePhotoFilePhotoPath(checklist.Photo)
+           log.Println(err)
+        }
+    }
+    
+    // Удаляем чек-листы из базы данных
+    err = s.userRepo.DeleteChecklistsByIDs(checklistIDs)
+    if err != nil {
+        return fmt.Errorf("ошибка удаления чек-листов из БД: %v", err)
+    }
+    
+    log.Printf("✅ Успешно удалено %d чек-листов", len(checklistIDs))
+    return nil
+}
+
+// DeletePhotoFile удаляет файл фотографии по указанному пути
+func (s *UserService) DeletePhotoFilePhotoPath(photoPath string) error {
+    photos := strings.Split(photoPath, ",")
+    
+            for _, photo := range photos {
+                //trimmedPhoto := strings.TrimSpace(photo)
+                if photo != "" {
+                    // Удаляем каждую фотографию
+                    s.DeletePhotoFile(photo)
+                    
+                }
+            }
+            return nil
+}
 
